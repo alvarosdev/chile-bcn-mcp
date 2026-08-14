@@ -10,6 +10,8 @@ A Model Context Protocol (MCP) server that gives AI assistants direct access to 
 
 > **Built with Go** using the official [modelcontextprotocol/go-sdk](https://github.com/modelcontextprotocol/go-sdk). Legal content is served by the public LeyChile API of the Biblioteca del Congreso Nacional.
 
+> ⚠️ **Disclaimer:** this is an independent community project — not affiliated with BCN/LeyChile or any Chilean government institution — and is not intended for production use. See the [Disclaimer](#disclaimer) section for the full terms.
+
 ---
 
 ## Table of Contents
@@ -27,6 +29,7 @@ A Model Context Protocol (MCP) server that gives AI assistants direct access to 
 - [Repository Layout](#repository-layout)
 - [FAQ](#faq)
 - [Recommended System Prompt](#recommended-system-prompt)
+- [Disclaimer](#disclaimer)
 - [License](#license)
 
 ---
@@ -262,8 +265,23 @@ For optimal results, pair the server with this system prompt:
 
 ---
 
+## Disclaimer
+
+This project is provided **"as is"**, for educational and informational purposes only. By using it, you accept the following:
+
+- **No responsibility for misuse.** The author assumes no responsibility for any misuse of this software, or for any consequence — legal, technical or otherwise — arising from its use. Information returned through these tools should always be verified against the official source.
+- **No data stored.** This project does not store, persist or share any data — neither from its users nor from BCN/LeyChile. Content is fetched at request time and cached in memory only, for the lifetime of the running process.
+- **No affiliation.** This project is **not** affiliated with, endorsed by, or connected in any way to the Biblioteca del Congreso Nacional (BCN), LeyChile, or any Chilean government or public institution. It is an independent, community-built tool.
+- **No availability guarantee.** Given the nature of BCN's public API, the author is not responsible if it stops working, changes its responses, or is interrupted at any time.
+- **Not for production.** This project was not created with the intention of running in production or critical environments. Use it at your own discretion.
+- **Be considerate of a public service.** Please be responsible with the number of requests made to each tool, and avoid saturating the servers of a public service such as BCN.
+
+---
+
 ## License
 
 This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+
+Third-party components (the go-sdk, resty, html-to-markdown, and their dependency tree — MIT, Apache-2.0, BSD-3-Clause, ISC) are attributed with their full license texts in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES).
 
 Legal content is served verbatim from the public LeyChile API of the Biblioteca del Congreso Nacional de Chile (BCN) and belongs to its original source.
