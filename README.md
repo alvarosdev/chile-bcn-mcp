@@ -31,6 +31,7 @@ A Model Context Protocol (MCP) server that gives AI assistants direct access to 
 - [FAQ](#faq)
 - [Recommended System Prompt](#recommended-system-prompt)
 - [Disclaimer](#disclaimer)
+- [Release Process](#release-process)
 - [License](#license)
 
 ---
@@ -135,8 +136,8 @@ make build
 make run-http        # HTTP mode
 make run-stdio       # stdio mode
 
-# Cross-compile for other architectures
-make build-arm64
+# Cross-platform distributions (6 targets, self-contained with config)
+make dist
 ```
 
 The binary is fully static — it needs no Go toolchain at runtime. The API endpoints contract is baked next to the binary at `config/api.resources.yaml` (fixed path, no hot reload — configuration changes are deployed by rebuilding).
@@ -308,6 +309,35 @@ This project is provided **"as is"**, for educational and informational purposes
 - **No availability guarantee.** Given the nature of BCN's public API, the author is not responsible if it stops working, changes its responses, or is interrupted at any time.
 - **Not for production.** This project was not created with the intention of running in production or critical environments. Use it at your own discretion.
 - **Be considerate of a public service.** Please be responsible with the number of requests made to each tool, and avoid saturating the servers of a public service such as BCN.
+
+---
+
+## Release Process
+
+Releases happen **only by merging a `release/v*` branch into `main`** — there is no tag-push trigger. The flow:
+
+1. Create a PR from `release/v<version>` (e.g. `release/v0.1.0`) to `main` and **merge it**.
+2. On merge, the workflow:
+   - builds the **cross-platform distributions** into `dist.zip` (see below), and attaches them to the release
+   - publishes the OCI image to GHCR with tags `<version>` and `latest`
+   - creates a **draft** GitHub Release with tag `v<version>` — you publish it manually
+3. A PR closed **without** merging generates nothing.
+
+For a manual run, use the workflow dispatch and enter the version.
+
+### Distributions (`dist.zip`)
+
+Self-contained builds for six targets — each folder carries its binary plus `config/api.resources.yaml` (the server loads the contract from a fixed relative path, so `cd linux/amd64 && ./chile-bcn-mcp` just works):
+
+```
+dist.zip
+├── windows/{amd64,arm64}/chile-bcn-mcp.exe
+├── linux/{amd64,arm64}/chile-bcn-mcp
+├── darwin/{amd64,arm64}/chile-bcn-mcp     (amd64 = Intel, arm64 = Apple Silicon)
+└── SHA256SUMS.txt
+```
+
+Build locally with `make dist` (runs the same script as CI).
 
 ---
 
