@@ -37,9 +37,77 @@ func (_m *MockLawClient) EXPECT() *MockLawClient_Expecter {
 	return &MockLawClient_Expecter{mock: &_m.Mock}
 }
 
-// GetNorma provides a mock function for the type MockLawClient
-func (_mock *MockLawClient) GetNorma(ctx context.Context, normID int64) (NormaFull, error) {
+// GetLawHistory provides a mock function for the type MockLawClient
+func (_mock *MockLawClient) GetLawHistory(ctx context.Context, normID int64) ([]HistoriaGrupo, error) {
 	ret := _mock.Called(ctx, normID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetLawHistory")
+	}
+
+	var r0 []HistoriaGrupo
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64) ([]HistoriaGrupo, error)); ok {
+		return returnFunc(ctx, normID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64) []HistoriaGrupo); ok {
+		r0 = returnFunc(ctx, normID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]HistoriaGrupo)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = returnFunc(ctx, normID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockLawClient_GetLawHistory_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetLawHistory'
+type MockLawClient_GetLawHistory_Call struct {
+	*mock.Call
+}
+
+// GetLawHistory is a helper method to define mock.On call
+//   - ctx context.Context
+//   - normID int64
+func (_e *MockLawClient_Expecter) GetLawHistory(ctx any, normID any) *MockLawClient_GetLawHistory_Call {
+	return &MockLawClient_GetLawHistory_Call{Call: _e.mock.On("GetLawHistory", ctx, normID)}
+}
+
+func (_c *MockLawClient_GetLawHistory_Call) Run(run func(ctx context.Context, normID int64)) *MockLawClient_GetLawHistory_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockLawClient_GetLawHistory_Call) Return(historiaGrupos []HistoriaGrupo, err error) *MockLawClient_GetLawHistory_Call {
+	_c.Call.Return(historiaGrupos, err)
+	return _c
+}
+
+func (_c *MockLawClient_GetLawHistory_Call) RunAndReturn(run func(ctx context.Context, normID int64) ([]HistoriaGrupo, error)) *MockLawClient_GetLawHistory_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetNorma provides a mock function for the type MockLawClient
+func (_mock *MockLawClient) GetNorma(ctx context.Context, q NormaQuery) (NormaFull, error) {
+	ret := _mock.Called(ctx, q)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetNorma")
@@ -47,16 +115,16 @@ func (_mock *MockLawClient) GetNorma(ctx context.Context, normID int64) (NormaFu
 
 	var r0 NormaFull
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64) (NormaFull, error)); ok {
-		return returnFunc(ctx, normID)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, NormaQuery) (NormaFull, error)); ok {
+		return returnFunc(ctx, q)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64) NormaFull); ok {
-		r0 = returnFunc(ctx, normID)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, NormaQuery) NormaFull); ok {
+		r0 = returnFunc(ctx, q)
 	} else {
 		r0 = ret.Get(0).(NormaFull)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, int64) error); ok {
-		r1 = returnFunc(ctx, normID)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, NormaQuery) error); ok {
+		r1 = returnFunc(ctx, q)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -70,20 +138,20 @@ type MockLawClient_GetNorma_Call struct {
 
 // GetNorma is a helper method to define mock.On call
 //   - ctx context.Context
-//   - normID int64
-func (_e *MockLawClient_Expecter) GetNorma(ctx any, normID any) *MockLawClient_GetNorma_Call {
-	return &MockLawClient_GetNorma_Call{Call: _e.mock.On("GetNorma", ctx, normID)}
+//   - q NormaQuery
+func (_e *MockLawClient_Expecter) GetNorma(ctx any, q any) *MockLawClient_GetNorma_Call {
+	return &MockLawClient_GetNorma_Call{Call: _e.mock.On("GetNorma", ctx, q)}
 }
 
-func (_c *MockLawClient_GetNorma_Call) Run(run func(ctx context.Context, normID int64)) *MockLawClient_GetNorma_Call {
+func (_c *MockLawClient_GetNorma_Call) Run(run func(ctx context.Context, q NormaQuery)) *MockLawClient_GetNorma_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 int64
+		var arg1 NormaQuery
 		if args[1] != nil {
-			arg1 = args[1].(int64)
+			arg1 = args[1].(NormaQuery)
 		}
 		run(
 			arg0,
@@ -98,14 +166,14 @@ func (_c *MockLawClient_GetNorma_Call) Return(normaFull NormaFull, err error) *M
 	return _c
 }
 
-func (_c *MockLawClient_GetNorma_Call) RunAndReturn(run func(ctx context.Context, normID int64) (NormaFull, error)) *MockLawClient_GetNorma_Call {
+func (_c *MockLawClient_GetNorma_Call) RunAndReturn(run func(ctx context.Context, q NormaQuery) (NormaFull, error)) *MockLawClient_GetNorma_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetNormaSummary provides a mock function for the type MockLawClient
-func (_mock *MockLawClient) GetNormaSummary(ctx context.Context, normID int64) (NormaSummary, error) {
-	ret := _mock.Called(ctx, normID)
+func (_mock *MockLawClient) GetNormaSummary(ctx context.Context, q NormaQuery) (NormaSummary, error) {
+	ret := _mock.Called(ctx, q)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetNormaSummary")
@@ -113,16 +181,16 @@ func (_mock *MockLawClient) GetNormaSummary(ctx context.Context, normID int64) (
 
 	var r0 NormaSummary
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64) (NormaSummary, error)); ok {
-		return returnFunc(ctx, normID)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, NormaQuery) (NormaSummary, error)); ok {
+		return returnFunc(ctx, q)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64) NormaSummary); ok {
-		r0 = returnFunc(ctx, normID)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, NormaQuery) NormaSummary); ok {
+		r0 = returnFunc(ctx, q)
 	} else {
 		r0 = ret.Get(0).(NormaSummary)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, int64) error); ok {
-		r1 = returnFunc(ctx, normID)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, NormaQuery) error); ok {
+		r1 = returnFunc(ctx, q)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -136,20 +204,20 @@ type MockLawClient_GetNormaSummary_Call struct {
 
 // GetNormaSummary is a helper method to define mock.On call
 //   - ctx context.Context
-//   - normID int64
-func (_e *MockLawClient_Expecter) GetNormaSummary(ctx any, normID any) *MockLawClient_GetNormaSummary_Call {
-	return &MockLawClient_GetNormaSummary_Call{Call: _e.mock.On("GetNormaSummary", ctx, normID)}
+//   - q NormaQuery
+func (_e *MockLawClient_Expecter) GetNormaSummary(ctx any, q any) *MockLawClient_GetNormaSummary_Call {
+	return &MockLawClient_GetNormaSummary_Call{Call: _e.mock.On("GetNormaSummary", ctx, q)}
 }
 
-func (_c *MockLawClient_GetNormaSummary_Call) Run(run func(ctx context.Context, normID int64)) *MockLawClient_GetNormaSummary_Call {
+func (_c *MockLawClient_GetNormaSummary_Call) Run(run func(ctx context.Context, q NormaQuery)) *MockLawClient_GetNormaSummary_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 int64
+		var arg1 NormaQuery
 		if args[1] != nil {
-			arg1 = args[1].(int64)
+			arg1 = args[1].(NormaQuery)
 		}
 		run(
 			arg0,
@@ -164,7 +232,7 @@ func (_c *MockLawClient_GetNormaSummary_Call) Return(normaSummary NormaSummary, 
 	return _c
 }
 
-func (_c *MockLawClient_GetNormaSummary_Call) RunAndReturn(run func(ctx context.Context, normID int64) (NormaSummary, error)) *MockLawClient_GetNormaSummary_Call {
+func (_c *MockLawClient_GetNormaSummary_Call) RunAndReturn(run func(ctx context.Context, q NormaQuery) (NormaSummary, error)) *MockLawClient_GetNormaSummary_Call {
 	_c.Call.Return(run)
 	return _c
 }

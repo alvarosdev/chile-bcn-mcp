@@ -73,6 +73,22 @@ func (s *LawClientSuite) testResources(serverURL string) *config.Resources {
 					ResetTimeout:     config.Duration(time.Second),
 				},
 			},
+			resourceGetLawHist: {
+				URL:     serverURL,
+				Path:    "/get_historias_de_ley",
+				Method:  "GET",
+				Timeout: config.Duration(2 * time.Second),
+				Retry: config.Retry{
+					Attempts:   1,
+					Backoff:    config.Duration(time.Millisecond),
+					MaxBackoff: config.Duration(2 * time.Millisecond),
+				},
+				CircuitBreaker: config.CircuitBreaker{
+					FailureThreshold: 100,
+					SuccessThreshold: 1,
+					ResetTimeout:     config.Duration(time.Second),
+				},
+			},
 		},
 	}
 }
@@ -180,7 +196,7 @@ func (s *LawClientSuite) TestGetNormaParsesRealResponse() {
 	defer server.Close()
 
 	client := NewClient(s.testResources(server.URL), s.logger())
-	norma, err := client.GetNorma(context.Background(), 1195666)
+	norma, err := client.GetNorma(context.Background(), NormaQuery{NormID: 1195666})
 	s.Require().NoError(err)
 
 	// Metadata.
@@ -222,7 +238,7 @@ func (s *LawClientSuite) TestGetNormaParsesNestedArticles() {
 	defer server.Close()
 
 	client := NewClient(s.testResources(server.URL), s.logger())
-	norma, err := client.GetNorma(context.Background(), 1195666)
+	norma, err := client.GetNorma(context.Background(), NormaQuery{NormID: 1195666})
 	s.Require().NoError(err)
 
 	// The API nests articles under titles (field "h"): TÍTULO I has 3
@@ -261,9 +277,9 @@ func (s *LawClientSuite) TestGetNormaServes304FromCache() {
 	defer server.Close()
 
 	client := NewClient(s.testResources(server.URL), s.logger())
-	first, err := client.GetNorma(context.Background(), 1195666)
+	first, err := client.GetNorma(context.Background(), NormaQuery{NormID: 1195666})
 	s.Require().NoError(err)
-	second, err := client.GetNorma(context.Background(), 1195666)
+	second, err := client.GetNorma(context.Background(), NormaQuery{NormID: 1195666})
 	s.Require().NoError(err)
 
 	// The second call was served from cache: only ONE 200 download happened
@@ -289,13 +305,13 @@ func (s *LawClientSuite) TestGetNormaReplacesCacheOnNewETag() {
 	defer server.Close()
 
 	client := NewClient(s.testResources(server.URL), s.logger())
-	_, err := client.GetNorma(context.Background(), 1195666)
+	_, err := client.GetNorma(context.Background(), NormaQuery{NormID: 1195666})
 	s.Require().NoError(err)
 	// Server always answers 200: the cache entry must be replaced, not served.
-	_, err = client.GetNorma(context.Background(), 1195666)
+	_, err = client.GetNorma(context.Background(), NormaQuery{NormID: 1195666})
 	s.Require().NoError(err)
 	s.Equal(int32(2), calls.Load())
-	entry, ok := client.cache.get(1195666)
+	entry, ok := client.normas.get(normaCacheKey(NormaQuery{NormID: 1195666}))
 	s.Require().True(ok)
 	s.Equal(`W/"new"`, entry.etag)
 }
@@ -311,7 +327,7 @@ func (s *LawClientSuite) TestGetNormaSummaryParsesRealResponse() {
 	defer server.Close()
 
 	client := NewClient(s.testResources(server.URL), s.logger())
-	summary, err := client.GetNormaSummary(context.Background(), 1195666)
+	summary, err := client.GetNormaSummary(context.Background(), NormaQuery{NormID: 1195666})
 	s.Require().NoError(err)
 	s.Equal("CREA EL SERVICIO DE BIODIVERSIDAD Y ÁREAS PROTEGIDAS Y EL SISTEMA NACIONAL DE ÁREAS PROTEGIDAS", summary.TituloNorma)
 	s.Equal("Diario Oficial", summary.Fuente)
@@ -332,9 +348,9 @@ func (s *LawClientSuite) TestGetNormaSummaryServesFromCacheWithoutHTTP() {
 	defer server.Close()
 
 	client := NewClient(s.testResources(server.URL), s.logger())
-	first, err := client.GetNormaSummary(context.Background(), 1195666)
+	first, err := client.GetNormaSummary(context.Background(), NormaQuery{NormID: 1195666})
 	s.Require().NoError(err)
-	second, err := client.GetNormaSummary(context.Background(), 1195666)
+	second, err := client.GetNormaSummary(context.Background(), NormaQuery{NormID: 1195666})
 	s.Require().NoError(err)
 
 	// The second summary was derived from the cache: ONE request total.
@@ -350,9 +366,147 @@ func (s *LawClientSuite) TestGetNormaSummaryNotFound() {
 	defer server.Close()
 
 	client := NewClient(s.testResources(server.URL), s.logger())
-	_, err := client.GetNormaSummary(context.Background(), 999999999)
+	_, err := client.GetNormaSummary(context.Background(), NormaQuery{NormID: 999999999})
 	s.Require().Error(err)
 	s.True(errors.Is(err, ErrNormaNotFound), "expected ErrNormaNotFound, got: %v", err)
+}
+
+func (s *LawClientSuite) TestGetNormaHistoricalVersion() {
+	latestJSON := s.fixture("norma_full.json")
+	oldJSON := s.fixture("norma_2010.json")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Query().Get("idVersion") == "2010-01-01" {
+			_, _ = w.Write(oldJSON)
+			return
+		}
+		s.Equal("", r.URL.Query().Get("idVersion"), "no version_date must not send idVersion")
+		_, _ = w.Write(latestJSON)
+	}))
+	defer server.Close()
+
+	client := NewClient(s.testResources(server.URL), s.logger())
+	latest, err := client.GetNorma(context.Background(), NormaQuery{NormID: 141599})
+	s.Require().NoError(err)
+	old, err := client.GetNorma(context.Background(), NormaQuery{NormID: 141599, VersionDate: "2010-01-01"})
+	s.Require().NoError(err)
+
+	// The API returns different content per version; both are cached apart.
+	s.NotEqual(latest.Metadatos.Vigencia, old.Metadatos.Vigencia, "versions must differ")
+	s.Equal(latest.Metadatos.Vigencia, latest.Metadatos.Vigencia)
+}
+
+func (s *LawClientSuite) TestGetNormaVersionsDoNotMixInCache() {
+	latestJSON := s.fixture("norma_full.json")
+	oldJSON := s.fixture("norma_2010.json")
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("ETag", r.URL.Query().Get("idVersion"))
+		if r.URL.Query().Get("idVersion") == "2010-01-01" {
+			_, _ = w.Write(oldJSON)
+			return
+		}
+		_, _ = w.Write(latestJSON)
+	}))
+	defer server.Close()
+
+	client := NewClient(s.testResources(server.URL), s.logger())
+	_, err := client.GetNorma(context.Background(), NormaQuery{NormID: 141599})
+	s.Require().NoError(err)
+	_, err = client.GetNorma(context.Background(), NormaQuery{NormID: 141599, VersionDate: "2010-01-01"})
+	s.Require().NoError(err)
+
+	// Two DIFFERENT cache entries: the second call was a cache miss and
+	// hit the network (not served from the other version's entry).
+	s.Equal(int32(2), calls.Load(), "versions must be cached separately")
+}
+
+func (s *LawClientSuite) TestGetNormaEnrichesCanonicalTypes() {
+	normaJSON := s.fixture("norma_full.json")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(normaJSON)
+	}))
+	defer server.Close()
+
+	client := NewClient(s.testResources(server.URL), s.logger())
+	norma, err := client.GetNorma(context.Background(), NormaQuery{NormID: 1195666})
+	s.Require().NoError(err)
+	tipo := norma.Metadatos.TiposNumeros[0]
+	s.Equal("Ley", tipo.CanonicalType)
+	s.Equal("LEY", tipo.CanonicalAbbr)
+	// Raw values stay intact (append, never replace).
+	s.Equal("1", tipo.Tipo)
+	s.Equal("Ley", tipo.Descripcion)
+}
+
+func (s *LawClientSuite) TestGetLawHistoryParsesRealResponse() {
+	historyJSON := s.fixture("history_full.json")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.Equal("/get_historias_de_ley", r.URL.Path)
+		s.Equal("1195666", r.URL.Query().Get("idNorma"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(historyJSON)
+	}))
+	defer server.Close()
+
+	client := NewClient(s.testResources(server.URL), s.logger())
+	grupos, err := client.GetLawHistory(context.Background(), 1195666)
+	s.Require().NoError(err)
+	s.Require().Len(grupos, 3)
+
+	s.Equal(1, grupos[0].TipoCod)
+	s.Len(grupos[0].Hls, 1)
+	s.Equal(3, grupos[1].TipoCod) // modificatorias
+	s.Len(grupos[1].Hls, 3)
+	s.Equal(4, grupos[2].TipoCod) // modificadas
+	s.Len(grupos[2].Hls, 9)
+
+	// The entry for Ley 21.770: id_norma_hl is the record's norm id.
+	modificatoria := grupos[1].Hls[0]
+	s.Equal(int64(1216930), modificatoria.IDNormaHL)
+	s.Equal(int64(1195666), modificatoria.IDNorma, "id_norma points to the related norm")
+}
+
+func (s *LawClientSuite) TestGetLawHistoryServes304FromCache() {
+	historyJSON := s.fixture("history_full.json")
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls.Add(1) == 1 {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("ETag", `W/"hist1"`)
+			_, _ = w.Write(historyJSON)
+			return
+		}
+		s.Equal(`W/"hist1"`, r.Header.Get("If-None-Match"))
+		w.WriteHeader(http.StatusNotModified)
+	}))
+	defer server.Close()
+
+	client := NewClient(s.testResources(server.URL), s.logger())
+	first, err := client.GetLawHistory(context.Background(), 1195666)
+	s.Require().NoError(err)
+	second, err := client.GetLawHistory(context.Background(), 1195666)
+	s.Require().NoError(err)
+
+	s.Equal(int32(2), calls.Load(), "one download + one revalidation")
+	s.Len(first, 3)
+	s.Len(second, 3)
+}
+
+func (s *LawClientSuite) TestGetLawHistoryEmptyResult() {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("[]"))
+	}))
+	defer server.Close()
+
+	client := NewClient(s.testResources(server.URL), s.logger())
+	grupos, err := client.GetLawHistory(context.Background(), 999999999)
+	s.Require().NoError(err)
+	s.Empty(grupos)
 }
 
 func (s *LawClientSuite) TestGetNormaNotFound() {
@@ -363,7 +517,7 @@ func (s *LawClientSuite) TestGetNormaNotFound() {
 	defer server.Close()
 
 	client := NewClient(s.testResources(server.URL), s.logger())
-	_, err := client.GetNorma(context.Background(), 999999999)
+	_, err := client.GetNorma(context.Background(), NormaQuery{NormID: 999999999})
 	s.Require().Error(err)
 	s.True(errors.Is(err, ErrNormaNotFound), "expected ErrNormaNotFound, got: %v", err)
 }

@@ -72,7 +72,7 @@ func (s *GetLawSuite) sampleNorma() bcn.NormaFull {
 }
 
 func (s *GetLawSuite) TestGetLawFullContent() {
-	s.lawClient.EXPECT().GetNorma(mock.Anything, int64(1195666)).Return(s.sampleNorma(), nil).Once()
+	s.lawClient.EXPECT().GetNorma(mock.Anything, bcn.NormaQuery{NormID: 1195666}).Return(s.sampleNorma(), nil).Once()
 
 	res, err := s.callTool(map[string]any{"norm_id": 1195666})
 	s.Require().NoError(err)
@@ -99,7 +99,7 @@ func (s *GetLawSuite) TestGetLawFullContent() {
 }
 
 func (s *GetLawSuite) TestGetLawStructureOnlyOmitsContent() {
-	s.lawClient.EXPECT().GetNorma(mock.Anything, int64(1195666)).Return(s.sampleNorma(), nil).Once()
+	s.lawClient.EXPECT().GetNorma(mock.Anything, bcn.NormaQuery{NormID: 1195666}).Return(s.sampleNorma(), nil).Once()
 
 	res, err := s.callTool(map[string]any{"norm_id": 1195666, "structure_only": true})
 	s.Require().NoError(err)
@@ -129,7 +129,7 @@ func (s *GetLawSuite) TestGetLawInvalidNormIDFailsWithoutCallingClient() {
 }
 
 func (s *GetLawSuite) TestGetLawNotFoundSurfacesClearMessage() {
-	s.lawClient.EXPECT().GetNorma(mock.Anything, int64(999999999)).Return(bcn.NormaFull{}, bcn.ErrNormaNotFound).Once()
+	s.lawClient.EXPECT().GetNorma(mock.Anything, bcn.NormaQuery{NormID: 999999999, VersionDate: ""}).Return(bcn.NormaFull{}, bcn.ErrNormaNotFound).Once()
 
 	res, err := s.callTool(map[string]any{"norm_id": 999999999})
 	s.Require().NoError(err)
@@ -138,10 +138,35 @@ func (s *GetLawSuite) TestGetLawNotFoundSurfacesClearMessage() {
 }
 
 func (s *GetLawSuite) TestGetLawGenericErrorSurfaces() {
-	s.lawClient.EXPECT().GetNorma(mock.Anything, int64(1)).Return(bcn.NormaFull{}, errors.New("circuit breaker open")).Once()
+	s.lawClient.EXPECT().GetNorma(mock.Anything, bcn.NormaQuery{NormID: 1, VersionDate: ""}).Return(bcn.NormaFull{}, errors.New("circuit breaker open")).Once()
 
 	res, err := s.callTool(map[string]any{"norm_id": 1})
 	s.Require().NoError(err)
 	s.True(res.IsError)
 	s.Contains(res.Content[0].(*mcp.TextContent).Text, "get law failed")
+}
+
+func (s *GetLawSuite) TestGetLawWithVersionDate() {
+	s.lawClient.EXPECT().GetNorma(mock.Anything, bcn.NormaQuery{NormID: 141599, VersionDate: "2010-01-01"}).
+		Return(s.sampleNorma(), nil).Once()
+
+	res, err := s.callTool(map[string]any{"norm_id": 141599, "version_date": "2010-01-01"})
+	s.Require().NoError(err)
+	s.False(res.IsError)
+	text := res.Content[0].(*mcp.TextContent).Text
+	s.Contains(text, "Version: as of 2010-01-01")
+
+	sc, ok := res.StructuredContent.(map[string]any)
+	s.Require().True(ok)
+	s.Equal("2010-01-01", sc["version_date"])
+}
+
+func (s *GetLawSuite) TestGetLawInvalidVersionDateFailsWithoutCallingClient() {
+	// No expectations on the mock: the handler must not call GetNorma.
+	for _, bad := range []string{"2010-13-45", "basura", "01/01/2010"} {
+		res, err := s.callTool(map[string]any{"norm_id": 141599, "version_date": bad})
+		s.Require().NoError(err)
+		s.True(res.IsError)
+		s.Contains(res.Content[0].(*mcp.TextContent).Text, "version_date must be a valid date")
+	}
 }

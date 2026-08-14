@@ -5,17 +5,20 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"dev.alvaros.chile-bcn-mcp/internal/bcn"
 )
 
-// GetLawArgs carries the arguments of the get_law tool. StructureOnly is
-// optional (omitempty keeps it out of the required schema).
+// GetLawArgs carries the arguments of the get_law tool. VersionDate and
+// StructureOnly are optional (omitempty keeps them out of the required
+// schema).
 type GetLawArgs struct {
-	NormID        int64 `json:"norm_id" jsonschema:"the norm id (norm_id) from search_laws results"`
-	StructureOnly bool  `json:"structure_only,omitempty" jsonschema:"return metadata and table of contents only, without the full content (default false)"`
+	NormID        int64  `json:"norm_id" jsonschema:"the norm id (norm_id) from search_laws results"`
+	VersionDate   string `json:"version_date,omitempty" jsonschema:"version in force at this date (YYYY-MM-DD, optional — defaults to the latest version)"`
+	StructureOnly bool   `json:"structure_only,omitempty" jsonschema:"return metadata and table of contents only, without the full content (default false)"`
 }
 
 // StructurePartOut is one flattened entry of the nested norm structure.
@@ -29,12 +32,14 @@ type StructurePartOut struct {
 }
 
 // GetLawOutput is the structured content of get_law. Content is omitted
-// when the norm was requested with structure_only.
+// when the norm was requested with structure_only; VersionDate echoes the
+// requested historical version (empty = latest).
 type GetLawOutput struct {
-	Metadatos  bcn.Metadatos      `json:"metadatos"`
-	Estructura []StructurePartOut `json:"estructura"`
-	Proyectos  []bcn.Proyecto     `json:"proyectos"`
-	Content    string             `json:"content,omitempty"`
+	Metadatos   bcn.Metadatos      `json:"metadatos"`
+	Estructura  []StructurePartOut `json:"estructura"`
+	Proyectos   []bcn.Proyecto     `json:"proyectos"`
+	Content     string             `json:"content,omitempty"`
+	VersionDate string             `json:"version_date,omitempty"`
 }
 
 // RegisterGetLaw registers the get_law tool on the MCP server.
@@ -52,8 +57,12 @@ func makeGetLaw(client bcn.LawClient) mcp.ToolHandlerFor[GetLawArgs, GetLawOutpu
 		if args.NormID <= 0 {
 			return errorResult("norm_id must be a positive number"), GetLawOutput{}, nil
 		}
+		if err := validateVersionDate(args.VersionDate); err != nil {
+			return errorResult(err.Error()), GetLawOutput{}, nil
+		}
 
-		norma, err := client.GetNorma(ctx, args.NormID)
+		query := bcn.NormaQuery{NormID: args.NormID, VersionDate: args.VersionDate}
+		norma, err := client.GetNorma(ctx, query)
 		if err != nil {
 			if errors.Is(err, bcn.ErrNormaNotFound) {
 				return errorResult(fmt.Sprintf("norma not found: norm_id %d does not exist in LeyChile", args.NormID)), GetLawOutput{}, nil
@@ -61,10 +70,10 @@ func makeGetLaw(client bcn.LawClient) mcp.ToolHandlerFor[GetLawArgs, GetLawOutpu
 			return errorResult(fmt.Sprintf("get law failed: %v", err)), GetLawOutput{}, nil
 		}
 
-		output := buildGetLawOutput(norma, args.StructureOnly)
+		output := buildGetLawOutput(norma, args)
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
-				&mcp.TextContent{Text: formatNorma(norma, args.StructureOnly)},
+				&mcp.TextContent{Text: formatNorma(norma, args)},
 			},
 		}, output, nil
 	}
@@ -72,15 +81,16 @@ func makeGetLaw(client bcn.LawClient) mcp.ToolHandlerFor[GetLawArgs, GetLawOutpu
 
 // buildGetLawOutput projects the norm into the structured output. Content
 // (the Markdown body) is omitted when structureOnly is set.
-func buildGetLawOutput(norma bcn.NormaFull, structureOnly bool) GetLawOutput {
+func buildGetLawOutput(norma bcn.NormaFull, args GetLawArgs) GetLawOutput {
 	var estructura []StructurePartOut
 	flattenStructure(norma.Estructura, 0, &estructura)
 	out := GetLawOutput{
-		Metadatos:  norma.Metadatos,
-		Estructura: estructura,
-		Proyectos:  norma.Proyectos,
+		Metadatos:   norma.Metadatos,
+		Estructura:  estructura,
+		Proyectos:   norma.Proyectos,
+		VersionDate: args.VersionDate,
 	}
-	if !structureOnly {
+	if !args.StructureOnly {
 		out.Content = normaContentMarkdown(norma)
 	}
 	return out
@@ -130,11 +140,15 @@ func renderBlocks(b *strings.Builder, blocks []bcn.HtmlBlock, depth int) {
 
 // formatNorma renders a norm for the LLM: metadata header, related bills,
 // table of contents, and (unless structureOnly) the full Markdown content.
-func formatNorma(norma bcn.NormaFull, structureOnly bool) string {
+// When a historical version was requested, the header states it.
+func formatNorma(norma bcn.NormaFull, args GetLawArgs) string {
 	var b strings.Builder
 	m := norma.Metadatos
 
 	fmt.Fprintf(&b, "# %s\n\n", m.TituloNorma)
+	if args.VersionDate != "" {
+		fmt.Fprintf(&b, "Version: as of %s\n", args.VersionDate)
+	}
 	fmt.Fprintf(&b, "Type: %s · Source: %s N° %s\n",
 		formatTipos(m.TiposNumeros), m.Fuente, m.NumeroFuente)
 	fmt.Fprintf(&b, "Organism: %s\n", strings.Join(m.Organismos, "; "))
@@ -176,7 +190,7 @@ func formatNorma(norma bcn.NormaFull, structureOnly bool) string {
 	b.WriteString("\n## Structure\n")
 	renderStructure(&b, norma.Estructura, 0)
 
-	if !structureOnly {
+	if !args.StructureOnly {
 		b.WriteString("\n## Content\n\n")
 		b.WriteString(normaContentMarkdown(norma))
 	}
@@ -190,6 +204,20 @@ func renderStructure(b *strings.Builder, parts []bcn.EstructuraPart, depth int) 
 		fmt.Fprintf(b, "%s- %s\n", strings.Repeat("  ", depth), part.N)
 		renderStructure(b, part.H, depth+1)
 	}
+}
+
+// validateVersionDate enforces the strict YYYY-MM-DD format. The API
+// silently ignores malformed dates (returns the latest version), so the
+// tool fails fast instead of letting the model believe it read the
+// requested version.
+func validateVersionDate(versionDate string) error {
+	if versionDate == "" {
+		return nil
+	}
+	if _, err := time.Parse("2006-01-02", versionDate); err != nil {
+		return fmt.Errorf("version_date must be a valid date in YYYY-MM-DD format, got %q", versionDate)
+	}
+	return nil
 }
 
 // formatTipos renders the norm type list as "Ley 21600; Decreto 1".

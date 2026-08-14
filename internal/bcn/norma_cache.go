@@ -2,45 +2,46 @@ package bcn
 
 import "sync"
 
-// normaCacheMax bounds the cache size: distinct norms requested in a single
-// process lifetime. On overflow an arbitrary entry is evicted (Go map
-// iteration) — the cache is a performance aid, correctness comes from ETag
-// revalidation, so eviction is always safe.
-const normaCacheMax = 100
+// cacheMax bounds each cache size: distinct entries in a single process
+// lifetime. On overflow an arbitrary entry is evicted (Go map iteration) —
+// caches are a performance aid, correctness comes from ETag revalidation,
+// so eviction is always safe.
+const cacheMax = 100
 
-// cacheEntry holds one cached norm with the ETag of the response it came from.
-type cacheEntry struct {
+// etagEntry holds one cached value with the ETag of the response it came from.
+type etagEntry[T any] struct {
 	etag  string
-	norma NormaFull
+	value T
 }
 
-// NormaCache is an in-memory cache for norms keyed by norm id, with ETag
-// revalidation. Safe for concurrent use.
-type NormaCache struct {
+// etagCache is an in-memory cache with ETag revalidation, keyed by a
+// caller-defined string key (norms: "normID@versionDate"; histories:
+// "normID"). Safe for concurrent use.
+type etagCache[T any] struct {
 	mu      sync.Mutex
-	entries map[int64]cacheEntry
+	entries map[string]etagEntry[T]
 }
 
-// NewNormaCache builds an empty cache.
-func NewNormaCache() *NormaCache {
-	return &NormaCache{entries: make(map[int64]cacheEntry)}
+// newEtagCache builds an empty cache.
+func newEtagCache[T any]() *etagCache[T] {
+	return &etagCache[T]{entries: make(map[string]etagEntry[T])}
 }
 
-func (c *NormaCache) get(normID int64) (cacheEntry, bool) {
+func (c *etagCache[T]) get(key string) (etagEntry[T], bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	e, ok := c.entries[normID]
+	e, ok := c.entries[key]
 	return e, ok
 }
 
-func (c *NormaCache) put(normID int64, e cacheEntry) {
+func (c *etagCache[T]) put(key string, e etagEntry[T]) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if _, exists := c.entries[normID]; !exists && len(c.entries) >= normaCacheMax {
+	if _, exists := c.entries[key]; !exists && len(c.entries) >= cacheMax {
 		for k := range c.entries { // arbitrary eviction
 			delete(c.entries, k)
 			break
 		}
 	}
-	c.entries[normID] = e
+	c.entries[key] = e
 }

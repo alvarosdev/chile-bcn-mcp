@@ -25,6 +25,7 @@ A Model Context Protocol (MCP) server that gives AI assistants direct access to 
 - [Environment Variables](#environment-variables)
 - [Available Tools](#available-tools)
 - [Sample Usage](#sample-usage)
+- [Prompts](#prompts)
 - [Image Tags & Updates](#image-tags--updates)
 - [Repository Layout](#repository-layout)
 - [FAQ](#faq)
@@ -163,12 +164,13 @@ The server exposes three MCP tools:
 | Tool | Purpose |
 |------|---------|
 | **`search_laws(query, page?, page_size?)`** | Paginated search across Chilean laws, decrees and resolutions. Returns each result with its `norm_id`, ready to fetch. |
-| **`get_law(norm_id, structure_only?)`** | Full content of a norm by `norm_id`: metadata, nested table of contents, related bills, and the complete text in Markdown. |
-| **`get_law_summary(norm_id)`** | Lightweight overview of a norm — title, source, matters, categories and the official BCN summary — without the content. Use before reading the full text. |
+| **`get_law(norm_id, version_date?, structure_only?)`** | Full content of a norm by `norm_id`: metadata, nested table of contents, related bills, and the complete text in Markdown. `version_date` (`YYYY-MM-DD`, strict) returns the version in force at that date. |
+| **`get_law_history(norm_id)`** | Legislative history of a norm: its own history, the laws that modified it and the laws it modified — with dates, descriptions and LeyChile ficha links. |
+| **`get_law_summary(norm_id, version_date?)`** | Lightweight overview of a norm — title, source, matters, categories and the official BCN summary — without the content. Use before reading the full text. |
 
 Every tool returns both readable text (`content[]`) and typed `structuredContent` with a generated JSON schema.
 
-**Caching**: norm content is cached in memory with **ETag revalidation** — re-requesting the same `norm_id` sends `If-None-Match` and a `304` from LeyChile serves the cached copy without re-downloading or re-converting. `get_law_summary` derives from the same cache without any network call on a hit.
+**Caching**: norm content is cached in memory with **ETag revalidation**, keyed per version (`norm_id@version_date` — historical versions never share cache entries). Re-requesting the same norm+version sends `If-None-Match` and a `304` from LeyChile serves the cached copy without re-downloading or re-converting. `get_law_summary` derives from the same cache without any network call on a hit; `get_law_history` has its own ETag cache.
 
 ---
 
@@ -192,11 +194,42 @@ Busca la Ley 21.600
 ```
 → The LLM calls `get_law(norm_id=1195666)` and navigates the Markdown (títulos → artículos)
 
+**Read a historical version:**
+```
+¿Qué decía la Ley 19.628 en 2010?
+```
+→ The LLM calls `get_law(norm_id=141599, version_date="2010-01-01")` — the header shows "Version: as of 2010-01-01"
+
+**Trace what modified a law:**
+```
+¿Qué leyes han modificado la Ley 21.600?
+```
+→ The LLM calls `get_law_history(norm_id=1195666)` and reads the modificatorias group
+
 **Explore a long norm cheaply:**
 ```
 ¿Cuántos títulos tiene la Ley 21.600?
 ```
 → The LLM calls `get_law(norm_id=1195666, structure_only=true)` — metadata + table of contents only
+
+---
+
+## Prompts
+
+The server also exposes six **curated prompts** — server-side templates that guide the model through the correct workflow for each task. They encode the domain rules (read summaries before opening norms, verify against the actual text, never invent articles) so clients don't need a custom system prompt.
+
+| Prompt | Arguments | When to use |
+|--------|-----------|-------------|
+| **`analyze_law`** | `norm_id`*, `aspect` | Structured legal analysis of a norm (purpose, scope, obligations, sanctions) with citations |
+| **`search_legal_topic`** | `topic`* | Guided search: pick a query, read summaries first, verify with the full text |
+| **`compare_law_versions`** | `norm_id`*, `from_date`*, `to_date`* | Compare a norm between two dates using historical `version_date` |
+| **`trace_law_history`** | `norm_id`* | Trace which laws modified a norm, with the correct LeyChile ids |
+| **`check_law_validity`** | `norm_id`*, `date` | In force / derogated / in force at a given date |
+| **`explain_law_simply`** | `norm_id`*, `audience` | Plain-language explanation with citations and a no-legal-advice disclaimer |
+
+(* = required)
+
+Prompts complement the [Recommended System Prompt](#recommended-system-prompt): that one covers the general stance; the prompts encode the step-by-step workflow per task. Serving a prompt is a pure template operation — it never calls the BCN API.
 
 ---
 

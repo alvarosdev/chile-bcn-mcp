@@ -12,8 +12,10 @@ import (
 )
 
 // GetLawSummaryArgs carries the arguments of the get_law_summary tool.
+// VersionDate is optional (omitempty keeps it out of the required schema).
 type GetLawSummaryArgs struct {
-	NormID int64 `json:"norm_id" jsonschema:"the norm id (norm_id) from search_laws results"`
+	NormID      int64  `json:"norm_id" jsonschema:"the norm id (norm_id) from search_laws results"`
+	VersionDate string `json:"version_date,omitempty" jsonschema:"version in force at this date (YYYY-MM-DD, optional — defaults to the latest version)"`
 }
 
 // RegisterGetLawSummary registers the get_law_summary tool on the MCP server.
@@ -32,8 +34,12 @@ func makeGetLawSummary(client bcn.LawClient) mcp.ToolHandlerFor[GetLawSummaryArg
 		if args.NormID <= 0 {
 			return errorResult("norm_id must be a positive number"), bcn.NormaSummary{}, nil
 		}
+		if err := validateVersionDate(args.VersionDate); err != nil {
+			return errorResult(err.Error()), bcn.NormaSummary{}, nil
+		}
 
-		summary, err := client.GetNormaSummary(ctx, args.NormID)
+		query := bcn.NormaQuery{NormID: args.NormID, VersionDate: args.VersionDate}
+		summary, err := client.GetNormaSummary(ctx, query)
 		if err != nil {
 			if errors.Is(err, bcn.ErrNormaNotFound) {
 				return errorResult(fmt.Sprintf("norma not found: norm_id %d does not exist in LeyChile", args.NormID)), bcn.NormaSummary{}, nil
@@ -43,7 +49,7 @@ func makeGetLawSummary(client bcn.LawClient) mcp.ToolHandlerFor[GetLawSummaryArg
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
-				&mcp.TextContent{Text: formatNormaSummary(summary)},
+				&mcp.TextContent{Text: formatNormaSummary(summary, args.VersionDate)},
 			},
 		}, summary, nil
 	}
@@ -51,9 +57,12 @@ func makeGetLawSummary(client bcn.LawClient) mcp.ToolHandlerFor[GetLawSummaryArg
 
 // formatNormaSummary renders the summary for the LLM. The official BCN
 // summary is short by nature, so it goes complete in the text view.
-func formatNormaSummary(s bcn.NormaSummary) string {
+func formatNormaSummary(s bcn.NormaSummary, versionDate string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s\n\n", s.TituloNorma)
+	if versionDate != "" {
+		fmt.Fprintf(&b, "Version: as of %s\n", versionDate)
+	}
 	fmt.Fprintf(&b, "Source: %s\n", s.Fuente)
 	if len(s.Materias) > 0 {
 		fmt.Fprintf(&b, "Matters: %s\n", strings.Join(s.Materias, ", "))

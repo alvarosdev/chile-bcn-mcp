@@ -38,7 +38,7 @@ func (s *GetLawSummarySuite) callTool(args map[string]any) (*mcp.CallToolResult,
 }
 
 func (s *GetLawSummarySuite) TestSummaryValid() {
-	s.lawClient.EXPECT().GetNormaSummary(mock.Anything, int64(1142880)).Return(bcn.NormaSummary{
+	s.lawClient.EXPECT().GetNormaSummary(mock.Anything, bcn.NormaQuery{NormID: 1142880}).Return(bcn.NormaSummary{
 		TituloNorma:     "MODIFICA LA LEY N° 19.628, SOBRE PROTECCIÓN DE LA VIDA PRIVADA",
 		Fuente:          "Diario Oficial",
 		Materias:        []string{"Protección Vida Privada", "Informe sobre Deudas"},
@@ -75,11 +75,33 @@ func (s *GetLawSummarySuite) TestSummaryInvalidNormIDFailsWithoutCallingClient()
 }
 
 func (s *GetLawSummarySuite) TestSummaryNotFoundSurfacesClearMessage() {
-	s.lawClient.EXPECT().GetNormaSummary(mock.Anything, int64(999999999)).
+	s.lawClient.EXPECT().GetNormaSummary(mock.Anything, bcn.NormaQuery{NormID: 999999999}).
 		Return(bcn.NormaSummary{}, bcn.ErrNormaNotFound).Once()
 
 	res, err := s.callTool(map[string]any{"norm_id": 999999999})
 	s.Require().NoError(err)
 	s.True(res.IsError)
 	s.Contains(res.Content[0].(*mcp.TextContent).Text, "norma not found: norm_id 999999999")
+}
+
+func (s *GetLawSummarySuite) TestSummaryWithVersionDate() {
+	s.lawClient.EXPECT().GetNormaSummary(mock.Anything, bcn.NormaQuery{NormID: 141599, VersionDate: "2010-01-01"}).
+		Return(bcn.NormaSummary{
+			TituloNorma: "SOBRE PROTECCION DE LA VIDA PRIVADA",
+			Fuente:      "Diario Oficial",
+			Resumenes:   []string{"Resumen de la versión histórica."},
+		}, nil).Once()
+
+	res, err := s.callTool(map[string]any{"norm_id": 141599, "version_date": "2010-01-01"})
+	s.Require().NoError(err)
+	s.False(res.IsError)
+	s.Contains(res.Content[0].(*mcp.TextContent).Text, "Version: as of 2010-01-01")
+}
+
+func (s *GetLawSummarySuite) TestSummaryInvalidVersionDateFailsWithoutCallingClient() {
+	// No expectations on the mock: the handler must not call GetNormaSummary.
+	res, err := s.callTool(map[string]any{"norm_id": 141599, "version_date": "no-es-fecha"})
+	s.Require().NoError(err)
+	s.True(res.IsError)
+	s.Contains(res.Content[0].(*mcp.TextContent).Text, "version_date must be a valid date")
 }

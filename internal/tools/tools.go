@@ -13,6 +13,7 @@ func RegisterTools(srv *mcp.Server, client bcn.LawClient) {
 	RegisterSearchLaws(srv, client)
 	RegisterGetLaw(srv, client)
 	RegisterGetLawSummary(srv, client)
+	RegisterGetLawHistory(srv, client)
 }
 
 // errorResult renders a tool error as an MCP error result. The handler
