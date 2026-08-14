@@ -1,12 +1,14 @@
 BINARY := bin/chile-bcn-mcp
 IMAGE := chile-bcn-mcp:local
 CONTAINER := chile-bcn-mcp
+# Temporary Bearer token for local testing (make run-http-auth).
+DEV_AUTH_TOKEN ?= devtoken
 # podman is the main container runtime; docker compose is the fallback.
 COMPOSE := $(shell command -v podman-compose >/dev/null 2>&1 && echo podman-compose || echo docker compose)
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build build-amd64 build-arm64 run-http run-stdio test vet fmt fmt-check mock check \
+.PHONY: help build build-amd64 build-arm64 run-http run-http-auth run-stdio test vet fmt fmt-check mock check \
 	podman-build podman-run podman-stop podman-logs compose-up compose-down smoke clean
 
 help: ## Show this help (default target)
@@ -22,8 +24,11 @@ build-amd64: ## Cross-compile for linux/amd64
 build-arm64: ## Cross-compile for linux/arm64
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o bin/chile-bcn-mcp-arm64 ./cmd/chile-bcn-mcp
 
-run-http: ## Run the server (HTTP, default config)
+run-http: ## Run the server (HTTP, default config, no auth)
 	go run ./cmd/chile-bcn-mcp
+
+run-http-auth: ## Run the server (HTTP) with a temporary Bearer token for testing (default: devtoken, override: make run-http-auth DEV_AUTH_TOKEN=x)
+	MCP_AUTH_TOKEN=$(DEV_AUTH_TOKEN) go run ./cmd/chile-bcn-mcp
 
 run-stdio: ## Run the server over stdio
 	FASTMCP_TRANSPORT=stdio go run ./cmd/chile-bcn-mcp

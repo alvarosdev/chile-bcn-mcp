@@ -21,6 +21,7 @@ import (
 
 	"dev.alvaros.chile-bcn-mcp/internal/bcn"
 	"dev.alvaros.chile-bcn-mcp/internal/config"
+	"dev.alvaros.chile-bcn-mcp/internal/prompts"
 	"dev.alvaros.chile-bcn-mcp/internal/server"
 	"dev.alvaros.chile-bcn-mcp/internal/tools"
 )
@@ -52,9 +53,10 @@ func main() {
 	// register all tools with it.
 	lawClient := bcn.NewClient(resources, logger)
 
-	// Create MCP server and register tools.
+	// Create MCP server and register tools and prompts.
 	srv := server.New(logger)
 	tools.RegisterTools(srv, lawClient)
+	prompts.RegisterPrompts(srv)
 
 	ctx, cancel := signal.NotifyContext(context.Background(),
 		syscall.SIGINT, syscall.SIGTERM)

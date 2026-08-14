@@ -52,6 +52,7 @@ internal/tools/               ← las 3 tools MCP: capa de presentación (valida
 
 1. **Bloques HTML anidados**: `get_norma_json` anida artículos bajo títulos/párrafos en el campo `h` (`HtmlBlock.H` recursivo). Un parseo plano pierde TODO el contenido de las leyes largas (Ley 21.600: 7KB vs 205KB). `ConvertContent` y los renders DEBEN caminar el árbol.
 2. **Tipos recursivos en outputs rompen el schema**: el generador de JSON Schema del go-sdk entra en ciclo (`panic: cycle detected`) si el Output contiene un tipo recursivo (ej. `EstructuraPart`). Aplanar con `depth` (ver `StructurePartOut`).
+2b. **El Output DEBE ser un tipo objeto**: MCP (SEP-2106) exige que `outputSchema` describa un objeto — un slice top-level (ej. `[]HistoriaGrupo`) genera `"type": "array"` y los clientes estrictos (zod) rechazan `tools/list` entero. Envolver en un struct (`GetLawHistoryOutput{Groups []...}`).
 3. **Mocks en handlers MCP**: matchear el `ctx` con `mock.Anything` SIEMPRE — el go-sdk pasa un contexto derivado; un mismatch hace `FailNow`/`Goexit` en la goroutine del handler (que no es la del test) y `CallTool` **cuelga para siempre** (sin mensaje).
 4. **Args con defaults**: llevan `,omitempty` en el tag `json` — sin omitempty el schema generado los marca `required`.
 5. **resty v3**: el módulo es `resty.dev/v3` (v3.0.0-rc.3, NO `github.com/go-resty/resty/v3`). No reintenta nada por defecto — las condiciones (`5xx` + status-zero) se declaran explícitas en `retryConditions`. El 304 con `SetResult` (body vacío) se maneja antes del chequeo de error.
