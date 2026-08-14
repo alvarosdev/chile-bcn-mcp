@@ -22,3 +22,5 @@
 - [x] 3.3 Actualizar `README.md`: sección Release (flujo release/v* → main, draft manual, zip con estructura os/arch, SHA256SUMS, dispatch con versión) y nota de que el trigger de tags `v*` ya no publica
 - [ ] 3.4 Primer release real: mergear PR `release/v0.1.0` → verificar draft con zip + imagen GHCR `0.1.0`/`latest` → publicar manualmente
 - [x] 1.6 Retirar los targets redundantes build-amd64/build-arm64 del Makefile (superados por make dist: mismos binarios + config embebida + checksums + 4 targets más) y actualizar README/CLAUDE.md
+- [x] 2.7 Job release: agregar `docker` a `needs` (release solo con pipeline verde — decisión del usuario)
+- [x] 2.8 Job backport: PR main → develop tras cada merge de release, con idempotencia (`gh pr list` abierto) y tolerancia a "no commits between"; permisos `pull-requests: write`

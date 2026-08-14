@@ -20,6 +20,7 @@ env:
 permissions:
   contents: write
   packages: write
+  pull-requests: write
 
 jobs:
   version:
@@ -99,11 +100,15 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.version.outputs.version }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          # cache-from only: reads never fail the build, but cache-to writes
+          # can (known "failed to reserve cache" on the GHA cache backend
+          # with multi-platform builds — it failed AFTER the image push).
           cache-from: type=gha
-          cache-to: type=gha,mode=max
 
   release:
-    needs: [version, dist]
+    # Only with a fully green pipeline: any failure in dist or docker
+    # blocks the draft release (no release on broken builds).
+    needs: [version, dist, docker]
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
@@ -132,3 +137,30 @@ jobs:
             --title "chile-bcn-mcp ${{ needs.version.outputs.version }}" \
             --repo "${{ github.repository }}"
           echo "✓ Draft release $TAG created — publish it manually"
+  backport:
+    # Keep develop in sync after a release merge. Runs on the version gate
+    # (main already has the merged code even if a downstream job fails);
+    # the PR is never auto-merged.
+    needs: version
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Create backport PR (main → develop)
+        run: |
+          VERSION="${{ needs.version.outputs.version }}"
+          if gh pr list --base develop --head main --state open --repo "${{ github.repository }}" | grep -q .; then
+            echo "· Backport PR already open — skipping"
+            exit 0
+          fi
+          if ! gh pr create --base develop --head main \
+              --title "chore: backport v$VERSION a develop" \
+              --body "Sincroniza develop con main tras el release v$VERSION." \
+              --repo "${{ github.repository }}"; then
+            # "no commits between main and develop" → nothing to backport.
+            echo "· Nothing to backport (main == develop) — skipping"
+            exit 0
+          fi
+          echo "✓ Backport PR created"
+=======
+
