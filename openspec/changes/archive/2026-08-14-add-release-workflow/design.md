@@ -35,25 +35,3 @@ Con ref `main`, `type=version` no resuelve — tags raw: `${{ env.REGISTRY }}/${
 
 **7. Release solo con pipeline verde (decisión del usuario)**
 `release` pasa a `needs: [version, dist, docker]` — cualquier fallo en dist o docker bloquea la creación del draft. El invariante "imagen solo si el build es correcto" ya lo garantiza `build-push-action` (el push ocurre dentro del build; build fallido = sin push) y quedó completo al quitar `cache-to` (única fase post-push que podía fallar).
-
-**8. Backport automático a develop (decisión del usuario)**
-Job `backport` con `needs: [version]` (corre en todo merge de release, aunque un job downstream falle — main ya tiene el código mergeado): `gh pr create --base develop --head main --title "chore: backport v<version> a develop"`. Idempotencia: `gh pr list --base develop --head main --state open` → si existe, skip. Sin divergencia → `gh pr create` falla con "no commits between" → `|| true` con mensaje (el spec lo exige: no falla el flujo). Permisos: `pull-requests: write`.
-
-
-## Risks / Trade-offs
-
-- [El trigger por PR no cubre merges por push directo a main] → Aceptado: el flujo de release es por PR (release/v* → main); documentado en el README.
-- [`gh release create` con tag existente falla] → Mitigación: idempotencia (decisión 5) con borrado solo de drafts.
-- [`zip`/`sha256sum` en el runner] → Preinstalados en ubuntu-latest; el script los valida al inicio (fail temprano con mensaje).
-- [windows/arm64 es poco común (Win on ARM)] → Se compila igual (Go lo soporta); sin costo extra en la matrix.
-- [El dispatch no tiene `head_ref`] → Cubierto por el input `version` requerido (decisión 1).
-
-## Migration Plan
-
-- `publish.yml` reemplaza su trigger; los releases existentes no se afectan.
-- `make dist` y `scripts/build-dist.sh` son nuevos y aditivos.
-- Primer release: mergear un PR `release/v0.1.0` → verificar draft + zip + imagen GHCR.
-
-## Open Questions
-
-<!-- Ninguna: trigger por merge (única vía), dispatch con input, SHA256SUMS, estructura del zip, gate de pipeline verde y backport a develop fueron decididos con el usuario. -->

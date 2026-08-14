@@ -51,19 +51,3 @@ El flujo DEBE crear un GitHub Release en estado **draft** con el tag `v<version>
 #### Scenario: Release solo con pipeline verde
 - **WHEN** el job de distribuciones o el job de la imagen OCI fallan
 - **THEN** NO se crea el release draft (el job de release depende de ambos)
-
-### Requirement: Backport a develop tras el release
-
-Cada merge de `release/v*` a `main` DEBE generar (o reutilizar, si ya existe abierto) un PR de backport de `main` hacia `develop`, para que la rama de desarrollo quede sincronizada con el release. El PR de backport NO DEBE mergearse automáticamente.
-
-#### Scenario: Backport creado
-- **WHEN** un PR de `release/v1.2.0` es mergeado a `main`
-- **THEN** se crea un PR abierto de `main` hacia `develop` con título identificando el release
-
-#### Scenario: Backport idempotente
-- **WHEN** ya existe un PR abierto de `main` hacia `develop`
-- **THEN** no se crea un duplicado
-
-#### Scenario: Sin divergencia
-- **WHEN** `main` y `develop` están sincronizados (no hay commits que portar)
-- **THEN** no se crea PR y el paso no falla el flujo
