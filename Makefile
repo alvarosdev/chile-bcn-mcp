@@ -8,8 +8,8 @@ COMPOSE := $(shell command -v podman-compose >/dev/null 2>&1 && echo podman-comp
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build build-amd64 build-arm64 run-http run-http-auth run-stdio test vet fmt fmt-check mock check \
-	podman-build podman-run podman-stop podman-logs compose-up compose-down smoke clean
+.PHONY: help build run-http run-http-auth run-stdio test vet fmt fmt-check mock check \
+	podman-build podman-run podman-stop podman-logs compose-up compose-down smoke dist clean
 
 help: ## Show this help (default target)
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -17,12 +17,6 @@ help: ## Show this help (default target)
 
 build: ## Build the server binary into bin/
 	CGO_ENABLED=0 go build -ldflags="-s -w" -o $(BINARY) ./cmd/chile-bcn-mcp
-
-build-amd64: ## Cross-compile for linux/amd64
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o bin/chile-bcn-mcp-amd64 ./cmd/chile-bcn-mcp
-
-build-arm64: ## Cross-compile for linux/arm64
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o bin/chile-bcn-mcp-arm64 ./cmd/chile-bcn-mcp
 
 run-http: ## Run the server (HTTP, default config, no auth)
 	go run ./cmd/chile-bcn-mcp
@@ -54,8 +48,9 @@ mock: ## Regenerate mocks (mockery, declared as a Go tool)
 check: ## Full local verification, same as CI: build + vet + test
 	$(MAKE) build vet test
 
-clean: ## Remove bin/
-	rm -rf bin
+clean: ## Remove bin/ and dist/
+	rm -rf bin && \
+	rm -rf dist
 
 podman-build: ## Build the container image with podman
 	podman build -t $(IMAGE) .
@@ -81,3 +76,6 @@ compose-down: ## Stop and remove via the compose fallback chain
 
 smoke: ## Run the smoke test (requires the server: make run-http)
 	bash scripts/smoke.sh
+
+dist: ## Build the cross-platform distributions into dist.zip (local = CI)
+	bash scripts/build-dist.sh 0.0.0-local

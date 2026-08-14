@@ -19,7 +19,7 @@ make mock         # regenera internal/bcn/law_client_mock.go (mockery v3, config
 make fmt-check    # falla si hay archivos sin gofmt
 make podman-build / podman-run / podman-stop / podman-logs   # podman es el runtime principal
 make compose-up / compose-down    # podman-compose con fallback a docker compose
-make build-amd64 / build-arm64    # cross-compile (Go nativo, sin QEMU)
+make dist                     # distribuciones cross-platform (6 targets, zip autocontenido)
 ```
 
 Test individual: `go test ./internal/bcn/ -run TestLawClientSuite/TestGetNormaServes304FromCache -v`. Los tests **nunca** tocan la red: httptest.Server + fixtures reales de BCN en `internal/bcn/testdata/`.
