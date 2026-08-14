@@ -1,0 +1,78 @@
+BINARY := bin/chile-bcn-mcp
+IMAGE := chile-bcn-mcp:local
+CONTAINER := chile-bcn-mcp
+# podman is the main container runtime; docker compose is the fallback.
+COMPOSE := $(shell command -v podman-compose >/dev/null 2>&1 && echo podman-compose || echo docker compose)
+
+.DEFAULT_GOAL := help
+
+.PHONY: help build build-amd64 build-arm64 run-http run-stdio test vet fmt fmt-check mock check \
+	podman-build podman-run podman-stop podman-logs compose-up compose-down smoke clean
+
+help: ## Show this help (default target)
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
+
+build: ## Build the server binary into bin/
+	CGO_ENABLED=0 go build -ldflags="-s -w" -o $(BINARY) ./cmd/chile-bcn-mcp
+
+build-amd64: ## Cross-compile for linux/amd64
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o bin/chile-bcn-mcp-amd64 ./cmd/chile-bcn-mcp
+
+build-arm64: ## Cross-compile for linux/arm64
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o bin/chile-bcn-mcp-arm64 ./cmd/chile-bcn-mcp
+
+run-http: ## Run the server (HTTP, default config)
+	go run ./cmd/chile-bcn-mcp
+
+run-stdio: ## Run the server over stdio
+	FASTMCP_TRANSPORT=stdio go run ./cmd/chile-bcn-mcp
+
+test: ## Run all tests (no cache)
+	go test ./... -count=1
+
+vet: ## Run go vet
+	go vet ./...
+
+fmt: ## Format all Go files
+	gofmt -w ./cmd ./internal
+
+fmt-check: ## Fail if any Go file is not gofmt-clean
+	@files=$$(gofmt -l ./cmd ./internal); \
+	if [ -n "$$files" ]; then \
+		echo "files need formatting:"; echo "$$files"; exit 1; \
+	fi
+
+mock: ## Regenerate mocks (mockery, declared as a Go tool)
+	go tool mockery
+
+check: ## Full local verification, same as CI: build + vet + test
+	$(MAKE) build vet test
+
+clean: ## Remove bin/
+	rm -rf bin
+
+podman-build: ## Build the container image with podman
+	podman build -t $(IMAGE) .
+
+podman-run: podman-build ## Run the image with podman (port 8000, health at /health)
+	-podman rm -f $(CONTAINER)
+	podman run -d --name $(CONTAINER) -p 8000:8000 \
+		-e MCP_AUTH_TOKEN=$${MCP_AUTH_TOKEN:-} \
+		$(IMAGE)
+	@echo "Container $(CONTAINER) running — health: curl http://localhost:8000/health"
+
+podman-stop: ## Stop and remove the podman container
+	-podman rm -f $(CONTAINER)
+
+podman-logs: ## Tail the container logs
+	podman logs -f $(CONTAINER)
+
+compose-up: ## Start via podman-compose (fallback: docker compose)
+	$(COMPOSE) up -d
+
+compose-down: ## Stop and remove via the compose fallback chain
+	$(COMPOSE) down
+
+smoke: ## Run the smoke test (requires the server: make run-http)
+	bash scripts/smoke.sh

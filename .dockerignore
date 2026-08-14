@@ -1,0 +1,12 @@
+# Project
+openspec/
+.claude/
+.git/
+.gitignore
+.env
+bin/
+dist/
+
+# Go (keep go.mod, go.sum for build)
+*.test
+*.out

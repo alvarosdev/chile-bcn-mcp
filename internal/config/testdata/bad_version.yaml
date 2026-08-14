@@ -1,0 +1,15 @@
+version: 99
+resources:
+  search_laws:
+    url: https://nuevo.leychile.cl
+    path: /servicios/buscarjson
+    method: GET
+    timeout: 10s
+    retry:
+      attempts: 3
+      backoff: 500ms
+      max_backoff: 5s
+    circuit_breaker:
+      failure_threshold: 5
+      success_threshold: 2
+      reset_timeout: 30s

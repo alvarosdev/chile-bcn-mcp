@@ -1,0 +1,21 @@
+services:
+  chile-bcn-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: chile-bcn-mcp-server
+    ports:
+      - "${FASTMCP_PORT:-8000}:8000"
+    environment:
+      - FASTMCP_TRANSPORT=${FASTMCP_TRANSPORT:-http}
+      - FASTMCP_HOST=0.0.0.0
+      - FASTMCP_PORT=8000
+      - FASTMCP_PATH=${FASTMCP_PATH:-/mcp}
+      - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s

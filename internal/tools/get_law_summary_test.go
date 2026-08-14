@@ -1,0 +1,85 @@
+package tools
+
+import (
+	"context"
+	"testing"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/suite"
+
+	"dev.alvaros.chile-bcn-mcp/internal/bcn"
+)
+
+// GetLawSummarySuite validates the get_law_summary tool against a
+// MockLawClient: the BCN API is never reached.
+type GetLawSummarySuite struct {
+	suite.Suite
+	ctx       context.Context
+	lawClient *bcn.MockLawClient
+	session   *mcp.ClientSession
+}
+
+func TestGetLawSummarySuite(t *testing.T) {
+	suite.Run(t, new(GetLawSummarySuite))
+}
+
+func (s *GetLawSummarySuite) SetupTest() {
+	s.ctx = context.Background()
+	s.lawClient = bcn.NewMockLawClient(s.T())
+	s.session = newTestClient(s.T(), s.ctx, s.lawClient)
+}
+
+func (s *GetLawSummarySuite) callTool(args map[string]any) (*mcp.CallToolResult, error) {
+	return s.session.CallTool(s.ctx, &mcp.CallToolParams{
+		Name:      "get_law_summary",
+		Arguments: args,
+	})
+}
+
+func (s *GetLawSummarySuite) TestSummaryValid() {
+	s.lawClient.EXPECT().GetNormaSummary(mock.Anything, int64(1142880)).Return(bcn.NormaSummary{
+		TituloNorma:     "MODIFICA LA LEY N° 19.628, SOBRE PROTECCIÓN DE LA VIDA PRIVADA",
+		Fuente:          "Diario Oficial",
+		Materias:        []string{"Protección Vida Privada", "Informe sobre Deudas"},
+		CategoriasNorma: []string{"Ley \"Educación sin Dicom\""},
+		Resumenes:       []string{"La presente ley establece la prohibición de comunicar información."},
+	}, nil).Once()
+
+	res, err := s.callTool(map[string]any{"norm_id": 1142880})
+	s.Require().NoError(err)
+	s.False(res.IsError)
+	text := res.Content[0].(*mcp.TextContent).Text
+	s.Contains(text, "# MODIFICA LA LEY N° 19.628")
+	s.Contains(text, "Categories: Ley \"Educación sin Dicom\"")
+	s.Contains(text, "Summary:")
+	s.Contains(text, "prohibición de comunicar información")
+	s.NotContains(text, "## Structure", "summary must not include the norm structure")
+
+	// Structured content: typed and complete.
+	sc, ok := res.StructuredContent.(map[string]any)
+	s.Require().True(ok, "structuredContent expected, got %T", res.StructuredContent)
+	s.Equal("MODIFICA LA LEY N° 19.628, SOBRE PROTECCIÓN DE LA VIDA PRIVADA", sc["titulo_norma"])
+	materias := sc["materias"].([]any)
+	s.Len(materias, 2)
+	_, hasContent := sc["content"]
+	s.False(hasContent, "summary structured content must not include the norm content")
+}
+
+func (s *GetLawSummarySuite) TestSummaryInvalidNormIDFailsWithoutCallingClient() {
+	// No expectations on the mock: the handler must not call GetNormaSummary.
+	res, err := s.callTool(map[string]any{"norm_id": 0})
+	s.Require().NoError(err)
+	s.True(res.IsError)
+	s.Contains(res.Content[0].(*mcp.TextContent).Text, "norm_id must be a positive number")
+}
+
+func (s *GetLawSummarySuite) TestSummaryNotFoundSurfacesClearMessage() {
+	s.lawClient.EXPECT().GetNormaSummary(mock.Anything, int64(999999999)).
+		Return(bcn.NormaSummary{}, bcn.ErrNormaNotFound).Once()
+
+	res, err := s.callTool(map[string]any{"norm_id": 999999999})
+	s.Require().NoError(err)
+	s.True(res.IsError)
+	s.Contains(res.Content[0].(*mcp.TextContent).Text, "norma not found: norm_id 999999999")
+}

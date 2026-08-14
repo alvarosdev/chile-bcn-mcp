@@ -1,0 +1,45 @@
+schema: spec-driven
+
+# Project context — shown to the AI when creating artifacts.
+# These conventions are inherited by every future change.
+context: |
+  Tech stack: Go 1.26. MCP server con modelcontextprotocol/go-sdk v1.7.0 (stdio + streamable
+  HTTP, misma instancia para ambos transportes). Cliente HTTP resty v3 (módulo resty.dev/v3,
+  v3.0.0-rc.3) con un *resty.Client por recurso (breaker count-based built-in + retry per-request
+  declarado en el YAML). html-to-markdown v2 (plugins base+commonmark+table). yaml.v3 para el
+  contrato de endpoints. Testify (suite) + mockery v3 (template testify, mocks generados al lado
+  del archivo productivo con nombres snake_case).
+  Dominio: búsqueda y recuperación de normas jurídicas chilenas (leyes, decretos, resoluciones)
+  desde los servicios de LeyChile / Biblioteca del Congreso Nacional (BCN).
+
+  Convenciones del proyecto:
+  - Interfaz en inglés: nombres de tools MCP, argumentos, filenames, descripciones de tools y
+    comentarios de código. Los datos crudos del dominio (texto legal en español, campos del
+    response de BCN, nombres de parámetros de la API como idNorma) se mantienen tal cual.
+    La traducción termina en la frontera (ej: norm_id en la tool → idNorma en el query param).
+  - Los artifacts OpenSpec (proposal, specs, design, tasks) se redactan en español.
+  - Norma LLM-first + structured: toda tool devuelve TextContent formateado para lectura del
+    modelo Y structuredContent tipado como segundo valor del handler (el go-sdk genera el
+    outputSchema automáticamente). El texto es una vista del structured (mismo dato, sin drift);
+    nunca JSON embebido como string dentro del texto; campos opcionales del output con omitempty.
+  - Tests sin red: suite testify con MockLawClient creado en SetupTest; el cliente real se testea
+    contra httptest.Server con fixtures reales en testdata/. En expectativas de mocks usadas por
+    handlers MCP, matchear el ctx con mock.Anything (el go-sdk pasa un contexto derivado; un
+    mismatch hace Goexit en la goroutine del handler y cuelga CallTool). Args de tools con
+    defaults llevan omitempty en el tag json (sin omitempty el schema generado los marca required).
+  - Configuración: endpoints declarados en config/api.resources.yaml con ruta FIJA (sin override
+    por env, sin hot-reload — los cambios se despliegan rebuildando la imagen, que embebe config/).
+    Settings del server por variables de entorno FASTMCP_*/MCP_AUTH_TOKEN cargadas una vez al
+    arranque. Instancia única inyectada por constructor (nunca estado global).
+  - Sanitización: todo texto que llega al LLM pasa por internal/bcn/sanitize.go (pasada única);
+    la "basura" de la API (entidades, &nbsp;, XML embebido, control chars) vive como constantes
+    nombradas en internal/bcn/garbage.go — nunca magic strings/numbers en la lógica.
+  - Calidad: make check (build+vet+test) como verificación completa local, make fmt-check,
+    benchmarks con guard rails en tests. Linter modernize: usar slices.Contains/ContainsFunc
+    en lugar de loops de pertenencia.
+  - Infraestructura: Dockerfile multi-stage BUILDPLATFORM (Go cross-compila nativo, QEMU solo
+    para el apk add del runtime arm64), usuario no-root, healthcheck /health. RUNTIME LOCAL:
+    podman es el runtime principal (podman-compose para orquestación; el compose file es
+    tool-agnostic), docker es solo fallback — Makefile: make podman-build/run/stop/logs y
+    make compose-up/down (cadena: podman-compose → docker compose). CI separado de publish
+    (docker buildx amd64+arm64 en GitHub → GHCR con tags v*).

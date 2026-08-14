@@ -1,0 +1,13 @@
+# Mockery v3 configuration.
+# Mocks are generated next to the production file ({{.InterfaceDir}}),
+# with snake_case filenames, following the project convention.
+all: false
+template: testify
+packages:
+  dev.alvaros.chile-bcn-mcp/internal/bcn:
+    interfaces:
+      LawClient:
+        config:
+          dir: "{{.InterfaceDir}}"
+          filename: "{{.InterfaceName | snakecase}}_mock.go"
+          structname: "Mock{{.InterfaceName}}"
