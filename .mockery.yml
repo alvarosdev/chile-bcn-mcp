@@ -4,7 +4,7 @@
 all: false
 template: testify
 packages:
-  dev.alvaros.chile-bcn-mcp/internal/bcn:
+  github.com/alvarosdev/chile-bcn-mcp/internal/bcn:
     interfaces:
       LawClient:
         config:

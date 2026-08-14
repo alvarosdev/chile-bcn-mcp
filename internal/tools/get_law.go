@@ -9,7 +9,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"dev.alvaros.chile-bcn-mcp/internal/bcn"
+	"github.com/alvarosdev/chile-bcn-mcp/internal/bcn"
 )
 
 // GetLawArgs carries the arguments of the get_law tool. VersionDate and

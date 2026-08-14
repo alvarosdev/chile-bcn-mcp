@@ -1,4 +1,4 @@
-module dev.alvaros.chile-bcn-mcp
+module github.com/alvarosdev/chile-bcn-mcp
 
 go 1.26.5
 

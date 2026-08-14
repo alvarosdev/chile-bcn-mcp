@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
-	"dev.alvaros.chile-bcn-mcp/internal/bcn"
+	"github.com/alvarosdev/chile-bcn-mcp/internal/bcn"
 )
 
 // GetLawSuite validates the get_law tool against a MockLawClient: the BCN

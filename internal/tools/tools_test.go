@@ -6,7 +6,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"dev.alvaros.chile-bcn-mcp/internal/bcn"
+	"github.com/alvarosdev/chile-bcn-mcp/internal/bcn"
 )
 
 // newTestClient connects an in-memory MCP client to a server with the

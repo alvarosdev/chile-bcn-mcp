@@ -8,7 +8,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"dev.alvaros.chile-bcn-mcp/internal/bcn"
+	"github.com/alvarosdev/chile-bcn-mcp/internal/bcn"
 )
 
 // GetLawSummaryArgs carries the arguments of the get_law_summary tool.

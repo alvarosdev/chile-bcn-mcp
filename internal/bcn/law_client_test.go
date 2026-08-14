@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"resty.dev/v3"
 
-	"dev.alvaros.chile-bcn-mcp/internal/config"
+	"github.com/alvarosdev/chile-bcn-mcp/internal/config"
 )
 
 // LawClientSuite exercises the real resty client against a local

@@ -7,7 +7,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"dev.alvaros.chile-bcn-mcp/internal/bcn"
+	"github.com/alvarosdev/chile-bcn-mcp/internal/bcn"
 )
 
 // SearchLawsArgs carries the arguments of the search_laws tool. Page and

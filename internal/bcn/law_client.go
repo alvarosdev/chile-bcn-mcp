@@ -20,7 +20,7 @@ import (
 	"github.com/JohannesKaufmann/html-to-markdown/v2/plugin/table"
 	"resty.dev/v3"
 
-	"dev.alvaros.chile-bcn-mcp/internal/config"
+	"github.com/alvarosdev/chile-bcn-mcp/internal/config"
 )
 
 // Resource ids in api.resources.yaml.

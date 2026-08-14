@@ -19,11 +19,11 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"dev.alvaros.chile-bcn-mcp/internal/bcn"
-	"dev.alvaros.chile-bcn-mcp/internal/config"
-	"dev.alvaros.chile-bcn-mcp/internal/prompts"
-	"dev.alvaros.chile-bcn-mcp/internal/server"
-	"dev.alvaros.chile-bcn-mcp/internal/tools"
+	"github.com/alvarosdev/chile-bcn-mcp/internal/bcn"
+	"github.com/alvarosdev/chile-bcn-mcp/internal/config"
+	"github.com/alvarosdev/chile-bcn-mcp/internal/prompts"
+	"github.com/alvarosdev/chile-bcn-mcp/internal/server"
+	"github.com/alvarosdev/chile-bcn-mcp/internal/tools"
 )
 
 func main() {
