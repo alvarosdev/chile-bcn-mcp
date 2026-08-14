@@ -99,8 +99,10 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.version.outputs.version }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          # cache-from only: reads never fail the build, but cache-to writes
+          # can (known "failed to reserve cache" on the GHA cache backend
+          # with multi-platform builds — it failed AFTER the image push).
           cache-from: type=gha
-          cache-to: type=gha,mode=max
 
   release:
     needs: [version, dist]
