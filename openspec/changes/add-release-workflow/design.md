@@ -33,6 +33,13 @@ Con ref `main`, `type=version` no resuelve — tags raw: `${{ env.REGISTRY }}/${
 **6. Estructura del zip**
 `windows/{amd64,arm64}/chile-bcn-mcp.exe`, `linux/{amd64,arm64}/chile-bcn-mcp`, `darwin/{amd64,arm64}/chile-bcn-mcp`, cada carpeta con `config/api.resources.yaml`, + `SHA256SUMS.txt` en la raíz. El yaml duplicado ×6 es ~700 bytes — el costo de que cada dist sea ejecutable tras extraer sin cambiar la ruta fija del server.
 
+**7. Release solo con pipeline verde (decisión del usuario)**
+`release` pasa a `needs: [version, dist, docker]` — cualquier fallo en dist o docker bloquea la creación del draft. El invariante "imagen solo si el build es correcto" ya lo garantiza `build-push-action` (el push ocurre dentro del build; build fallido = sin push) y quedó completo al quitar `cache-to` (única fase post-push que podía fallar).
+
+**8. Backport automático a develop (decisión del usuario)**
+Job `backport` con `needs: [version]` (corre en todo merge de release, aunque un job downstream falle — main ya tiene el código mergeado): `gh pr create --base develop --head main --title "chore: backport v<version> a develop"`. Idempotencia: `gh pr list --base develop --head main --state open` → si existe, skip. Sin divergencia → `gh pr create` falla con "no commits between" → `|| true` con mensaje (el spec lo exige: no falla el flujo). Permisos: `pull-requests: write`.
+
+
 ## Risks / Trade-offs
 
 - [El trigger por PR no cubre merges por push directo a main] → Aceptado: el flujo de release es por PR (release/v* → main); documentado en el README.
@@ -49,4 +56,4 @@ Con ref `main`, `type=version` no resuelve — tags raw: `${{ env.REGISTRY }}/${
 
 ## Open Questions
 
-<!-- Ninguna: trigger por merge (única vía), dispatch con input, SHA256SUMS y la estructura del zip fueron decididos con el usuario. -->
+<!-- Ninguna: trigger por merge (única vía), dispatch con input, SHA256SUMS, estructura del zip, gate de pipeline verde y backport a develop fueron decididos con el usuario. -->
