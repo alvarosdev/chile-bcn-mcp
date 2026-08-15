@@ -44,6 +44,9 @@ func (s *GetLawSummarySuite) TestSummaryValid() {
 		Materias:        []string{"Protección Vida Privada", "Informe sobre Deudas"},
 		CategoriasNorma: []string{"Ley \"Educación sin Dicom\""},
 		Resumenes:       []string{"La presente ley establece la prohibición de comunicar información."},
+		Estructura:      []bcn.StructurePartOut{{Name: "TÍTULO I", ID: 100, Depth: 0}},
+		CharCount:       3200,
+		ArticleCount:    4,
 	}, nil).Once()
 
 	res, err := s.callTool(map[string]any{"norm_id": 1142880})
@@ -54,7 +57,10 @@ func (s *GetLawSummarySuite) TestSummaryValid() {
 	s.Contains(text, "Categories: Ley \"Educación sin Dicom\"")
 	s.Contains(text, "Summary:")
 	s.Contains(text, "prohibición de comunicar información")
-	s.NotContains(text, "## Structure", "summary must not include the norm structure")
+	s.Contains(text, "Size: 3.2K chars · 4 articles")
+	s.Contains(text, "## Structure", "the summary carries the map of the law (structure with section ids)")
+	s.Contains(text, "- TÍTULO I | section_id: 100")
+	s.NotContains(text, "## Content", "summary must never include the norm content")
 
 	// Structured content: typed and complete.
 	sc, ok := res.StructuredContent.(map[string]any)
@@ -62,6 +68,9 @@ func (s *GetLawSummarySuite) TestSummaryValid() {
 	s.Equal("MODIFICA LA LEY N° 19.628, SOBRE PROTECCIÓN DE LA VIDA PRIVADA", sc["titulo_norma"])
 	materias := sc["materias"].([]any)
 	s.Len(materias, 2)
+	s.Equal(float64(3200), sc["char_count"])
+	s.Equal(float64(4), sc["article_count"])
+	s.NotEmpty(sc["estructura"])
 	_, hasContent := sc["content"]
 	s.False(hasContent, "summary structured content must not include the norm content")
 }

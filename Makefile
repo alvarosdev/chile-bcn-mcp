@@ -8,7 +8,7 @@ COMPOSE := $(shell command -v podman-compose >/dev/null 2>&1 && echo podman-comp
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build run-http run-http-auth run-stdio test vet fmt fmt-check mock check \
+.PHONY: help build run-http run-http-auth run-stdio test vet fmt fmt-check mock check vuln \
 	podman-build podman-run podman-stop podman-logs compose-up compose-down smoke dist clean
 
 help: ## Show this help (default target)
@@ -45,6 +45,9 @@ fmt-check: ## Fail if any Go file is not gofmt-clean
 mock: ## Regenerate mocks (mockery, declared as a Go tool)
 	go tool mockery
 
+vuln: ## Scan dependencies for known vulnerabilities (govulncheck, pinned)
+	go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+
 check: ## Full local verification, same as CI: build + vet + test
 	$(MAKE) build vet test
 
@@ -58,6 +61,7 @@ podman-build: ## Build the container image with podman
 podman-run: podman-build ## Run the image with podman (port 8000, health at /health)
 	-podman rm -f $(CONTAINER)
 	podman run -d --name $(CONTAINER) -p 8000:8000 \
+		--read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
 		-e MCP_AUTH_TOKEN=$${MCP_AUTH_TOKEN:-} \
 		$(IMAGE)
 	@echo "Container $(CONTAINER) running — health: curl http://localhost:8000/health"

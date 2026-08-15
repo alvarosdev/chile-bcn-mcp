@@ -56,6 +56,7 @@ func (s *PromptsSuite) TestListPrompts() {
 	expected := []string{
 		"analyze_law", "search_legal_topic", "compare_law_versions",
 		"trace_law_history", "check_law_validity", "explain_law_simply",
+		"law_research_workflow",
 	}
 	for _, name := range expected {
 		p, ok := names[name]
@@ -95,6 +96,17 @@ func (s *PromptsSuite) TestCompareVersionsInjectsDates() {
 	})
 	s.Contains(text, "get_law(norm_id=141599, version_date=2010-01-01)")
 	s.Contains(text, "get_law(norm_id=141599, version_date=2020-01-01)")
+}
+
+func (s *PromptsSuite) TestLawResearchWorkflowGuidesSectionFlow() {
+	text := s.getPrompt("law_research_workflow", map[string]string{"norm_id": "1195666"})
+	s.Contains(text, "Research Chilean norm 1195666 efficiently")
+	s.Contains(text, "get_law_summary(norm_id=1195666)")
+	s.Contains(text, "section_id=<section id>")
+	s.Contains(text, "NEVER invent articles")
+
+	focused := s.getPrompt("law_research_workflow", map[string]string{"norm_id": "1195666", "question": "¿Qué sanciones establece?"})
+	s.Contains(focused, "Focus on answering: ¿Qué sanciones establece?")
 }
 
 func (s *PromptsSuite) TestTraceHistoryUsesIDNormaHL() {

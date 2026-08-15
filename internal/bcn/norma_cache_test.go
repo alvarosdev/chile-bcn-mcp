@@ -7,7 +7,8 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-// NormaCacheSuite validates the generic in-memory etag cache.
+// NormaCacheSuite validates the generic in-memory etag cache with LRU
+// eviction.
 type NormaCacheSuite struct {
 	suite.Suite
 }
@@ -57,18 +58,35 @@ func (s *NormaCacheSuite) TestCompositeKeysDoNotMix() {
 	s.Equal("v2010", v2010.value.Metadatos.TituloNorma)
 }
 
-func (s *NormaCacheSuite) TestCapEvictsArbitraryEntry() {
+func (s *NormaCacheSuite) TestCapEvictsLeastRecentlyUsed() {
 	c := newEtagCache[NormaFull]()
-	for i := 0; i < cacheMax+10; i++ {
+	for i := range cacheMax + 10 {
 		c.put(fmt.Sprintf("%d", i), etagEntry[NormaFull]{etag: "e"})
 	}
-	// The cache never exceeds the cap: eviction happened on overflow.
-	hits := 0
-	for i := 0; i < cacheMax+10; i++ {
-		if _, ok := c.get(fmt.Sprintf("%d", i)); ok {
-			hits++
-		}
+	// LRU: the 10 oldest entries (never touched) were evicted on overflow
+	// and the most recent one survives.
+	for i := range 10 {
+		_, ok := c.get(fmt.Sprintf("%d", i))
+		s.False(ok, "oldest untouched entry %d must be evicted", i)
 	}
-	s.LessOrEqual(hits, cacheMax, "cache exceeded the cap")
-	s.Greater(hits, 0, "cache must retain entries after eviction")
+	_, ok := c.get(fmt.Sprintf("%d", cacheMax+9))
+	s.True(ok, "most recent entry must survive")
+}
+
+func (s *NormaCacheSuite) TestTouchMovesEntryToFront() {
+	// A get refreshes recency: the touched entry survives the next overflow
+	// while its untouched neighbor is evicted.
+	c := newEtagCache[string]()
+	for i := range cacheMax {
+		c.put(fmt.Sprintf("k%d", i), etagEntry[string]{etag: fmt.Sprintf("e%d", i), value: "v"})
+	}
+
+	_, ok := c.get("k0")
+	s.Require().True(ok)
+
+	c.put("overflow", etagEntry[string]{etag: "e", value: "v"})
+	_, ok = c.get("k1")
+	s.False(ok, "least recently used entry must be evicted")
+	_, ok = c.get("k0")
+	s.True(ok, "recently used entry must survive overflow")
 }

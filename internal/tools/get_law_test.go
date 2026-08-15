@@ -42,11 +42,20 @@ func (s *GetLawSuite) sampleNorma() bcn.NormaFull {
 	return bcn.NormaFull{
 		Html: []bcn.HtmlBlock{
 			{I: 1, T: "<div>LEY N&#xDA;M. 21.600</div>", Markdown: "LEY NÚM. 21.600", SectionName: "Encabezado"},
-			{I: 2, T: "<div>Título I</div>", Markdown: "Disposiciones generales.", SectionName: "TÍTULO I"},
+			{
+				I: 2, T: "<div>Título I</div>", Markdown: "Disposiciones generales.", SectionName: "TÍTULO I",
+				H: []bcn.HtmlBlock{
+					{I: 3, T: "<div>Artículo 1º</div>", Markdown: "Objeto.", SectionName: "Artículo 1º"},
+					{I: 4, T: "<div>Artículo 2º</div>", Markdown: "Definiciones.", SectionName: "Artículo 2º"},
+				},
+			},
 		},
 		Estructura: []bcn.EstructuraPart{
 			{N: "Encabezado", I: 1},
-			{N: "TÍTULO I", I: 2},
+			{N: "TÍTULO I", I: 2, H: []bcn.EstructuraPart{
+				{N: "Artículo 1º", I: 3, T: 6},
+				{N: "Artículo 2º", I: 4, T: 6},
+			}},
 		},
 		Proyectos: []bcn.Proyecto{{
 			Categoria: "Proyecto original",
@@ -169,4 +178,96 @@ func (s *GetLawSuite) TestGetLawInvalidVersionDateFailsWithoutCallingClient() {
 		s.True(res.IsError)
 		s.Contains(res.Content[0].(*mcp.TextContent).Text, "version_date must be a valid date")
 	}
+}
+
+func (s *GetLawSuite) TestGetLawSectionReturnsOnlySubtree() {
+	s.lawClient.EXPECT().GetNorma(mock.Anything, bcn.NormaQuery{NormID: 1195666}).Return(s.sampleNorma(), nil).Once()
+
+	res, err := s.callTool(map[string]any{"norm_id": 1195666, "section_id": 2})
+	s.Require().NoError(err)
+	s.False(res.IsError)
+	text := res.Content[0].(*mcp.TextContent).Text
+
+	// The header names the section and the content is limited to its subtree.
+	s.Contains(text, "Section: TÍTULO I")
+	s.Contains(text, "### TÍTULO I")
+	s.Contains(text, "#### Artículo 1º")
+	s.Contains(text, "Objeto.")
+	s.NotContains(text, "LEY NÚM. 21.600", "content outside the section must be omitted")
+	// The section view stays lightweight: summary and bills are skipped in
+	// the text (they ride along complete in the structured output).
+	s.NotContains(text, "Summary:", "section view must not repeat the law summary")
+	s.NotContains(text, "## Related bills", "section view must not repeat the related bills")
+	// The structure stays complete so the agent can chain the next section.
+	s.Contains(text, "- Encabezado")
+
+	sc, ok := res.StructuredContent.(map[string]any)
+	s.Require().True(ok)
+	s.Equal(float64(2), sc["section_id"])
+	s.NotContains(sc["content"], "Encabezado")
+}
+
+func (s *GetLawSuite) TestGetLawSectionNotFoundSuggestsStructureOnly() {
+	s.lawClient.EXPECT().GetNorma(mock.Anything, bcn.NormaQuery{NormID: 1195666}).Return(s.sampleNorma(), nil).Once()
+
+	res, err := s.callTool(map[string]any{"norm_id": 1195666, "section_id": 999})
+	s.Require().NoError(err)
+	s.True(res.IsError)
+	msg := res.Content[0].(*mcp.TextContent).Text
+	s.Contains(msg, "section not found: section_id 999")
+	s.Contains(msg, "structure_only=true")
+}
+
+func (s *GetLawSuite) TestGetLawNegativeSectionIDFailsWithoutCallingClient() {
+	// No expectations on the mock: the handler must not call GetNorma.
+	res, err := s.callTool(map[string]any{"norm_id": 1195666, "section_id": -1})
+	s.Require().NoError(err)
+	s.True(res.IsError)
+	s.Contains(res.Content[0].(*mcp.TextContent).Text, "section_id must be a positive number")
+}
+
+func (s *GetLawSuite) TestGetLawCountsDescribeReturnedContent() {
+	s.lawClient.EXPECT().GetNorma(mock.Anything, bcn.NormaQuery{NormID: 1195666}).Return(s.sampleNorma(), nil).Twice()
+
+	// Whole norm: counts describe the full document.
+	full, err := s.callTool(map[string]any{"norm_id": 1195666})
+	s.Require().NoError(err)
+	fullText := full.Content[0].(*mcp.TextContent).Text
+	s.Contains(fullText, "Size: ")
+	s.Contains(fullText, "2 articles")
+	fullSC := full.StructuredContent.(map[string]any)
+	fullChars := fullSC["char_count"].(float64)
+	s.Equal(float64(2), fullSC["article_count"])
+
+	// Section: the size is in the text and the counts describe the section —
+	// smaller char_count, same article count in this fixture (both articles
+	// live inside Título I).
+	section, err := s.callTool(map[string]any{"norm_id": 1195666, "section_id": 2})
+	s.Require().NoError(err)
+	sectionSC := section.StructuredContent.(map[string]any)
+	s.Less(sectionSC["char_count"].(float64), fullChars)
+	s.Equal(float64(2), sectionSC["article_count"])
+}
+
+func (s *GetLawSuite) TestGetLawStructureOnlyWithSectionIDOmitsContentAnyway() {
+	s.lawClient.EXPECT().GetNorma(mock.Anything, bcn.NormaQuery{NormID: 1195666}).Return(s.sampleNorma(), nil).Once()
+
+	res, err := s.callTool(map[string]any{"norm_id": 1195666, "section_id": 2, "structure_only": true})
+	s.Require().NoError(err)
+	s.False(res.IsError)
+	text := res.Content[0].(*mcp.TextContent).Text
+	s.Contains(text, "Section: TÍTULO I", "the header still names the requested scope")
+	s.NotContains(text, "## Content", "structure_only wins: no content")
+}
+
+func (s *GetLawSuite) TestGetLawSingleArticleUsesSingularCount() {
+	s.lawClient.EXPECT().GetNorma(mock.Anything, bcn.NormaQuery{NormID: 1195666}).Return(s.sampleNorma(), nil).Once()
+
+	res, err := s.callTool(map[string]any{"norm_id": 1195666, "section_id": 3}) // Artículo 1º (leaf)
+	s.Require().NoError(err)
+	s.False(res.IsError)
+	text := res.Content[0].(*mcp.TextContent).Text
+	s.Contains(text, "Section: Artículo 1º")
+	s.Contains(text, "1 article", "singular for a single article")
+	s.NotContains(text, "1 articles")
 }

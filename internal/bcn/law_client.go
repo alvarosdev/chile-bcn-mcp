@@ -9,15 +9,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/JohannesKaufmann/html-to-markdown/v2/converter"
 	"github.com/JohannesKaufmann/html-to-markdown/v2/plugin/base"
 	"github.com/JohannesKaufmann/html-to-markdown/v2/plugin/commonmark"
 	"github.com/JohannesKaufmann/html-to-markdown/v2/plugin/table"
+	"golang.org/x/sync/singleflight"
 	"resty.dev/v3"
 
 	"github.com/alvarosdev/chile-bcn-mcp/internal/config"
@@ -59,25 +62,31 @@ type NormaQuery struct {
 // Client implements LawClient over resty, with one *resty.Client per
 // resource — resty's circuit breaker is client-level. Clients are built
 // once in NewClient and reused for every request (no per-call setup).
-// The embedded converter is thread-safe (mutex inside the library).
+//
+// Each converter instance is thread-safe via an internal mutex, which
+// SERIALIZES conversions per instance: a single converter would make the
+// conversion of one long law block every other request. The pool gives
+// each in-flight conversion its own converter (conversion is the CPU hot
+// spot of GetNorma).
 type Client struct {
-	logger    *slog.Logger
-	resources *config.Resources
-	clients   map[string]*resty.Client
-	converter *converter.Converter
-	normas    *etagCache[NormaFull]
-	historias *etagCache[[]HistoriaGrupo]
+	logger     *slog.Logger
+	resources  *config.Resources
+	clients    map[string]*resty.Client
+	converters sync.Pool
+	flights    singleflight.Group
+	normas     *etagCache[NormaFull]
+	historias  *etagCache[[]HistoriaGrupo]
 }
 
 // NewClient builds a Client from the resources contract.
 func NewClient(resources *config.Resources, logger *slog.Logger) *Client {
 	c := &Client{
-		logger:    logger,
-		resources: resources,
-		clients:   make(map[string]*resty.Client, len(resources.Resources)),
-		converter: newConverter(),
-		normas:    newEtagCache[NormaFull](),
-		historias: newEtagCache[[]HistoriaGrupo](),
+		logger:     logger,
+		resources:  resources,
+		clients:    make(map[string]*resty.Client, len(resources.Resources)),
+		converters: sync.Pool{New: func() any { return newConverter() }},
+		normas:     newEtagCache[NormaFull](),
+		historias:  newEtagCache[[]HistoriaGrupo](),
 	}
 	for name, res := range resources.Resources {
 		c.clients[name] = c.newRestyClient(name, res)
@@ -238,13 +247,18 @@ type Vinculacion struct {
 }
 
 // NormaSummary is the lightweight projection of a norm: the metadata fields
-// that answer "what is this norm about", without the content.
+// that answer "what is this norm about", plus the flattened structure (with
+// the section ids to drill down with get_law) and the size of the full
+// content — without the content itself.
 type NormaSummary struct {
-	TituloNorma     string   `json:"titulo_norma"`
-	Fuente          string   `json:"fuente"`
-	Materias        []string `json:"materias"`
-	CategoriasNorma []string `json:"categorias_norma"`
-	Resumenes       []string `json:"resumenes"`
+	TituloNorma     string             `json:"titulo_norma"`
+	Fuente          string             `json:"fuente"`
+	Materias        []string           `json:"materias"`
+	CategoriasNorma []string           `json:"categorias_norma"`
+	Resumenes       []string           `json:"resumenes"`
+	Estructura      []StructurePartOut `json:"estructura"`
+	CharCount       int                `json:"char_count"`
+	ArticleCount    int                `json:"article_count"`
 }
 
 // HistoriaGrupo is one group of the legislative history of a norm:
@@ -274,11 +288,6 @@ type HistoriaEntrada struct {
 	Fecha       string `json:"fecha"`
 	Descripcion string `json:"descripcion"`
 	IDNormaHL   int64  `json:"id_norma_hl"`
-}
-
-// leyChileNavegar builds the canonical ficha link for a norm id.
-func leyChileNavegar(idNorma int64) string {
-	return fmt.Sprintf("https://www.leychile.cl/Navegar?idNorma=%d", idNorma)
 }
 
 // newConverter builds the shared HTML→Markdown converter. The standard
@@ -384,9 +393,31 @@ func normaCacheKey(q NormaQuery) string {
 // The response is cached per (norm, version) with ETag revalidation: a
 // repeated request sends If-None-Match and a 304 serves the cached (already
 // converted) norm without re-downloading or re-converting.
+//
+// Concurrent requests for the same (norm, version) are coalesced with
+// singleflight: they share ONE call to BCN (retry and breaker run inside
+// the flight). If the leader's context cancels, the flight errors for
+// every waiter — the same timeout behavior as before.
 func (c *Client) GetNorma(ctx context.Context, q NormaQuery) (NormaFull, error) {
-	res := c.resources.Resources[resourceGetLaw]
 	key := normaCacheKey(q)
+	v, err, _ := c.flights.Do(key, func() (any, error) {
+		return c.getNormaOnce(ctx, q, key)
+	})
+	if err != nil {
+		return NormaFull{}, err
+	}
+	return v.(NormaFull), nil
+}
+
+// maxNormResponseBytes bounds the norm response body. The largest known
+// norm is ~280KB, so 5MB leaves generous headroom while keeping a
+// misbehaving upstream from exhausting memory (GOMEMLIMIT is 256MiB).
+const maxNormResponseBytes = 5 << 20
+
+// getNormaOnce is the single-flight body of GetNorma: cache lookup, HTTP
+// with ETag revalidation, bounded body read, decode, convert and store.
+func (c *Client) getNormaOnce(ctx context.Context, q NormaQuery, key string) (NormaFull, error) {
+	res := c.resources.Resources[resourceGetLaw]
 	entry, cached := c.normas.get(key)
 
 	req := c.clients[resourceGetLaw].R().
@@ -395,7 +426,10 @@ func (c *Client) GetNorma(ctx context.Context, q NormaQuery) (NormaFull, error) 
 		SetRetryCount(res.Retry.Attempts).
 		SetRetryWaitTime(time.Duration(res.Retry.Backoff)).
 		SetRetryMaxWaitTime(time.Duration(res.Retry.MaxBackoff)).
-		SetRetryConditions(retryConditions...)
+		SetRetryConditions(retryConditions...).
+		// The body is read manually with a hard size limit instead of
+		// auto-parsing with SetResult (guard OOM — see maxNormResponseBytes).
+		SetResponseDoNotParse(true)
 	if q.VersionDate != "" {
 		req.SetQueryParam("idVersion", q.VersionDate)
 	}
@@ -403,17 +437,17 @@ func (c *Client) GetNorma(ctx context.Context, q NormaQuery) (NormaFull, error) 
 		req.SetHeader("If-None-Match", entry.etag)
 	}
 
-	var result NormaFull
-	resp, err := req.SetResult(&result).Get(res.Path)
-
-	// A 304 on a cached norm is a hit: serve the cached copy.
-	if resp != nil && resp.StatusCode() == http.StatusNotModified && cached {
-		c.logger.Debug("bcn get norm cache hit", "norm_id", q.NormID, "version_date", q.VersionDate)
-		return entry.value, nil
-	}
+	resp, err := req.Get(res.Path)
 	if err != nil {
 		c.logger.Error("bcn get norm failed", "norm_id", q.NormID, "version_date", q.VersionDate, "error", err)
 		return NormaFull{}, fmt.Errorf("get norm: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// A 304 on a cached norm is a hit: serve the cached copy.
+	if resp.StatusCode() == http.StatusNotModified && cached {
+		c.logger.Debug("bcn get norm cache hit", "norm_id", q.NormID, "version_date", q.VersionDate)
+		return entry.value, nil
 	}
 	if resp.StatusCode() == http.StatusInternalServerError {
 		// The API answers nonexistent ids with HTTP 500 and a "no se
@@ -424,7 +458,24 @@ func (c *Client) GetNorma(ctx context.Context, q NormaQuery) (NormaFull, error) 
 		return NormaFull{}, fmt.Errorf("get norm: unexpected status %d", resp.StatusCode())
 	}
 
-	result.ConvertContent(c.converter)
+	data, err := readBounded(resp.Body, maxNormResponseBytes)
+	if err != nil {
+		c.logger.Error("bcn get norm body failed", "norm_id", q.NormID, "version_date", q.VersionDate, "error", err)
+		return NormaFull{}, fmt.Errorf("get norm: %w", err)
+	}
+
+	var result NormaFull
+	if err := json.Unmarshal(data, &result); err != nil {
+		return NormaFull{}, fmt.Errorf("get norm: decode: %w", err)
+	}
+
+	// Conversion is the CPU hot spot: acquire a converter from the pool so
+	// concurrent norms convert in parallel (one converter = one conversion
+	// at a time, the library mutex serializes per instance).
+	conv := c.converters.Get().(*converter.Converter)
+	result.ConvertContent(conv)
+	c.converters.Put(conv)
+
 	// The API delivers metadatos.resumenes with leading indentation;
 	// sanitize it like every other text that reaches the LLM.
 	for i := range result.Metadatos.Resumenes {
@@ -435,6 +486,19 @@ func (c *Client) GetNorma(ctx context.Context, q NormaQuery) (NormaFull, error) 
 
 	c.normas.put(key, etagEntry[NormaFull]{etag: resp.Header().Get("ETag"), value: result})
 	return result, nil
+}
+
+// readBounded reads r up to limit+1 bytes and fails if the body exceeds
+// the limit — a hard cap, never truncated content.
+func readBounded(r io.Reader, limit int64) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > int(limit) {
+		return nil, fmt.Errorf("response body exceeds %d bytes", limit)
+	}
+	return data, nil
 }
 
 // GetNormaSummary returns the lightweight metadata view of a norm. On a
@@ -511,7 +575,9 @@ func enrichCanonicalTypes(n *NormaFull) {
 }
 
 // projectSummary derives the lightweight view from a full norm. The
-// resumenes are already sanitized by GetNorma.
+// resumenes are already sanitized by GetNorma. The structure is flattened
+// (schema-safe) and the counts describe the FULL norm — the summary is the
+// "map" of the law, so the size is always the whole document.
 func projectSummary(n NormaFull) NormaSummary {
 	return NormaSummary{
 		TituloNorma:     n.Metadatos.TituloNorma,
@@ -519,5 +585,8 @@ func projectSummary(n NormaFull) NormaSummary {
 		Materias:        n.Metadatos.Materias,
 		CategoriasNorma: n.Metadatos.CategoriasNorma,
 		Resumenes:       n.Metadatos.Resumenes,
+		Estructura:      FlattenStructure(n.Estructura),
+		CharCount:       ContentCharCount(n.Html),
+		ArticleCount:    n.CountArticles(),
 	}
 }

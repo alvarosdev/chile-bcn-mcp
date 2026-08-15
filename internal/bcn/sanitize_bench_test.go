@@ -40,9 +40,12 @@ func TestSanitizeGuardRails(t *testing.T) {
 	if testing.Short() {
 		t.Skip("guard rails skipped in -short mode")
 	}
+	if raceEnabled {
+		t.Skip("guard rails skipped under -race: timing is not meaningful with race instrumentation")
+	}
 	input := benchInput(t)
 	res := testing.Benchmark(func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = normalize(input)
 		}
 	})
@@ -63,7 +66,7 @@ func TestSanitizeGuardRails(t *testing.T) {
 func BenchmarkNormalize(b *testing.B) {
 	input := benchInput(b)
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = normalize(input)
 	}
 }

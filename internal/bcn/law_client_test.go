@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -520,4 +521,101 @@ func (s *LawClientSuite) TestGetNormaNotFound() {
 	_, err := client.GetNorma(context.Background(), NormaQuery{NormID: 999999999})
 	s.Require().Error(err)
 	s.True(errors.Is(err, ErrNormaNotFound), "expected ErrNormaNotFound, got: %v", err)
+}
+
+func (s *LawClientSuite) TestGetNormaRejectsOversizedResponse() {
+	// The body cap is a hard guard: a misbehaving upstream must error, never
+	// OOM the process (GOMEMLIMIT is 256MiB in the image).
+	big := strings.Repeat("x", maxNormResponseBytes+100)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(big))
+	}))
+	defer server.Close()
+
+	client := NewClient(s.testResources(server.URL), s.logger())
+	_, err := client.GetNorma(context.Background(), NormaQuery{NormID: 1195666})
+	s.Require().Error(err)
+	s.Contains(err.Error(), "exceeds")
+}
+
+func (s *LawClientSuite) TestGetNormaCoalescesConcurrentRequests() {
+	// singleflight: 8 concurrent requests for the same (norm, version) must
+	// share ONE call to BCN. The server holds the response so every goroutine
+	// piles up on the same in-flight call before it completes.
+	normaJSON := s.fixture("norma_full.json")
+	var calls atomic.Int32
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		<-release
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(normaJSON)
+	}))
+	defer server.Close()
+
+	client := NewClient(s.testResources(server.URL), s.logger())
+
+	var started atomic.Int32
+	var wg sync.WaitGroup
+	errs := make([]error, 8)
+	for i := range 8 {
+		wg.Add(1)
+		go func(i int) {
+			started.Add(1)
+			_, errs[i] = client.GetNorma(context.Background(), NormaQuery{NormID: 1195666})
+			wg.Done()
+		}(i)
+	}
+
+	// Deterministic enough: wait until every goroutine has entered GetNorma
+	// and a small grace beat for the last ones to join the flight, then
+	// release the leader's response.
+	for started.Load() < 8 {
+		time.Sleep(time.Millisecond)
+	}
+	s.Require().Equal(int32(1), calls.Load(), "only the flight leader may hit the server")
+	time.Sleep(50 * time.Millisecond)
+	close(release)
+	wg.Wait()
+
+	s.Equal(int32(1), calls.Load(), "concurrent requests must share ONE call to BCN")
+	for _, err := range errs {
+		s.Require().NoError(err)
+	}
+}
+
+func (s *LawClientSuite) TestGetNormaConvertsConcurrentlyWithPool() {
+	// 8 DIFFERENT norms in flight exercise the converter pool: every
+	// conversion gets its own converter (no shared mutex), no deadlock, and
+	// each result is converted correctly.
+	normaJSON := s.fixture("norma_full.json")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(normaJSON)
+	}))
+	defer server.Close()
+
+	client := NewClient(s.testResources(server.URL), s.logger())
+
+	var wg sync.WaitGroup
+	errs := make([]error, 8)
+	headers := make([]string, 8)
+	for i := range 8 {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			norma, err := client.GetNorma(context.Background(), NormaQuery{NormID: int64(1195666 + i)})
+			errs[i] = err
+			if err == nil && len(norma.Html) > 0 {
+				headers[i] = norma.Html[0].Markdown
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		s.Require().NoError(err, "concurrent conversion %d must succeed", i)
+		s.Contains(headers[i], "LEY NÚM. 21.600", "concurrent conversion %d must be correct", i)
+	}
 }

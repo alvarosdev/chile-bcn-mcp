@@ -82,5 +82,8 @@ func isZeroWidth(r rune) bool {
 }
 
 func isControl(r rune) bool {
-	return r >= controlMin && r <= controlMax && r != '\n' && r != '\t' && r != '\r'
+	// \r is a control char too: the spec contract eliminates every C0
+	// control rune outside \n and \t (caught by FuzzSanitizeMarkdown —
+	// a literal \r in the middle of LLM-bound markdown is pure garbage).
+	return r >= controlMin && r <= controlMax && r != '\n' && r != '\t'
 }

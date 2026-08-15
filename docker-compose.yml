@@ -13,6 +13,16 @@ services:
       - FASTMCP_PATH=${FASTMCP_PATH:-/mcp}
       - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN:-}
     restart: unless-stopped
+    # Hardening: the server never writes to disk (config is baked in, the
+    # ETag cache lives in memory), so the rootfs is read-only with a tmpfs
+    # only for /tmp, all capabilities dropped, no privilege escalation.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - "no-new-privileges:true"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s

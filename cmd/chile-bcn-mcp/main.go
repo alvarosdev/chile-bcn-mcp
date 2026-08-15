@@ -106,11 +106,12 @@ func runHTTP(ctx context.Context, logger *slog.Logger, srv *mcp.Server, cfg serv
 
 	addr := fmt.Sprintf("%s:%s", cfg.Host, cfg.Port)
 	httpSrv := &http.Server{
-		Addr:         addr,
-		Handler:      mux2,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		Addr:              addr,
+		Handler:           mux2,
+		ReadTimeout:       10 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second, // anti-Slowloris: ReadTimeout does not cover header phase
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	logger.Info("Listening", "addr", addr, "path", mcpPath)

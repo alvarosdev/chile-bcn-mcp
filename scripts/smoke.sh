@@ -56,8 +56,10 @@ SUMMARY=$(curl -s "${AUTH[@]}" -H "$CT" -H "$ACCEPT" -H "Mcp-Session-Id: $SID" \
   -X POST "$BASE/mcp" \
   -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_law_summary","arguments":{"norm_id":1142880}}}')
 grep -q 'categorias_norma' <<<"$SUMMARY" || fail "get_law_summary sin categorias_norma"
-# El summary no trae la estructura ni el contenido de la norma (## Structure
-# y ## Content solo aparecen en get_law).
-grep -q '## Structure\|## Content' <<<"$SUMMARY" && fail "get_law_summary no debe traer estructura ni contenido" || true
+# El summary trae la estructura (mapa con section ids) y el tamaño, pero
+# nunca el contenido de la norma (## Content solo aparece en get_law).
+grep -q '## Structure' <<<"$SUMMARY" || fail "get_law_summary sin estructura"
+grep -q 'Size:' <<<"$SUMMARY" || fail "get_law_summary sin tamaño"
+grep -q '## Content' <<<"$SUMMARY" && fail "get_law_summary no debe traer contenido" || true
 
 echo "✓ smoke ok — el server habla MCP de verdad"
