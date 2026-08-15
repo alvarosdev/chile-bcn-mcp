@@ -30,7 +30,7 @@ func ToolNames() []string {
 // and returns the message text. Pure — no external calls.
 type template func(args map[string]string) string
 
-// RegisterPrompts registers the six curated prompts on the MCP server.
+// RegisterPrompts registers the seven curated prompts on the MCP server.
 func RegisterPrompts(srv *mcp.Server) {
 	add := func(p *mcp.Prompt, t template) {
 		srv.AddPrompt(p, func(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
@@ -101,6 +101,16 @@ func RegisterPrompts(srv *mcp.Server) {
 			{Name: "audience", Title: "Audience", Description: "Optional target audience (e.g. students, small business owners)", Required: false},
 		},
 	}, explainLawSimplyTemplate)
+
+	add(&mcp.Prompt{
+		Name:        "law_research_workflow",
+		Title:       "Research a law section by section",
+		Description: "Efficient reading of a norm: summary and table of contents first, then only the relevant sections — avoiding the full text of long laws.",
+		Arguments: []*mcp.PromptArgument{
+			{Name: "norm_id", Title: "Norm id", Description: "The norm id (norm_id) from search_laws results", Required: true},
+			{Name: "question", Title: "Question", Description: "Optional research question to focus the reading", Required: false},
+		},
+	}, lawResearchWorkflowTemplate)
 }
 
 // analyzeLawTemplate is the structured legal analysis flow.
@@ -184,4 +194,21 @@ Call %s(norm_id=%s), then %s(norm_id=%s) to read the actual text. Explain withou
 
 For every claim, cite the source article. End with: this explanation is not legal advice; consult the official text at bcn.cl.`,
 		args["norm_id"], audience, toolGetLawSummary, args["norm_id"], toolGetLaw, args["norm_id"])
+}
+
+// lawResearchWorkflowTemplate is the economical reading flow: the summary
+// carries the size and the section ids, so the model reads only the
+// sections it needs instead of the full text of long norms.
+func lawResearchWorkflowTemplate(args map[string]string) string {
+	question := ""
+	if args["question"] != "" {
+		question = fmt.Sprintf(" Focus on answering: %s.", args["question"])
+	}
+	return fmt.Sprintf(`Research Chilean norm %s efficiently.%s
+
+Step 1: call %s(norm_id=%s) — it returns the summary, the size and the table of contents with the section ids.
+Step 2: read the structure and call %s(norm_id=%s, section_id=<section id>) ONLY for the sections relevant to the question. NEVER call %s without section_id unless the Size line shows a short norm.
+
+For every claim, cite the article number. NEVER invent articles or content — verify everything against the actual returned text.`,
+		args["norm_id"], question, toolGetLawSummary, args["norm_id"], toolGetLaw, args["norm_id"], toolGetLaw)
 }

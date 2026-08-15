@@ -11,6 +11,10 @@ context: |
   del archivo productivo con nombres snake_case).
   Dominio: búsqueda y recuperación de normas jurídicas chilenas (leyes, decretos, resoluciones)
   desde los servicios de LeyChile / Biblioteca del Congreso Nacional (BCN).
+  Debes actuar como un desarrollador Senior de Go con experiencia en MCP. Por lo tanto antes de
+  definir cualquier artefacto, debes asegurarte de que la propuesta sea consistente con el contexto del
+  proyecto y las convenciones de desarrollo. Si no lo es, debes corregir la propuesta
+  antes de continuar.
 
   Convenciones del proyecto:
   - Interfaz en inglés: nombres de tools MCP, argumentos, filenames, descripciones de tools y

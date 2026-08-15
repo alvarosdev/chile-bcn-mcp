@@ -1,0 +1,14 @@
+# Dependabot keeps dependencies fresh with automated PRs. resty v3.0.0-rc.3
+# is a pre-release: updates arrive here and are reviewed before merging
+# (upgrade to the stable release is tracked in the project decisions).
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

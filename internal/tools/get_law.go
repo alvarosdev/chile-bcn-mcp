@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,43 +13,41 @@ import (
 	"github.com/alvarosdev/chile-bcn-mcp/internal/bcn"
 )
 
-// GetLawArgs carries the arguments of the get_law tool. VersionDate and
-// StructureOnly are optional (omitempty keeps them out of the required
-// schema).
+// GetLawArgs carries the arguments of the get_law tool. VersionDate,
+// StructureOnly and SectionID are optional (omitempty keeps them out of
+// the required schema).
 type GetLawArgs struct {
 	NormID        int64  `json:"norm_id" jsonschema:"the norm id (norm_id) from search_laws results"`
 	VersionDate   string `json:"version_date,omitempty" jsonschema:"version in force at this date (YYYY-MM-DD, optional — defaults to the latest version)"`
 	StructureOnly bool   `json:"structure_only,omitempty" jsonschema:"return metadata and table of contents only, without the full content (default false)"`
-}
-
-// StructurePartOut is one flattened entry of the nested norm structure.
-// The API tree is recursive; the output flattens it with a depth field so
-// the JSON schema stays acyclic and consumers can rebuild the tree.
-type StructurePartOut struct {
-	Name  string `json:"name"`
-	ID    int64  `json:"id"`
-	Type  int    `json:"type,omitempty"`
-	Depth int    `json:"depth"`
+	SectionID     int64  `json:"section_id,omitempty" jsonschema:"structure id of the section to return (from get_law_summary or get_law structure_only); omit to return the whole norm"`
 }
 
 // GetLawOutput is the structured content of get_law. Content is omitted
-// when the norm was requested with structure_only; VersionDate echoes the
-// requested historical version (empty = latest).
+// when the norm was requested with structure_only. VersionDate and
+// SectionID echo the requested scope; CharCount and ArticleCount describe
+// the content returned: the whole norm, or the section when SectionID is
+// set.
 type GetLawOutput struct {
-	Metadatos   bcn.Metadatos      `json:"metadatos"`
-	Estructura  []StructurePartOut `json:"estructura"`
-	Proyectos   []bcn.Proyecto     `json:"proyectos"`
-	Content     string             `json:"content,omitempty"`
-	VersionDate string             `json:"version_date,omitempty"`
+	Metadatos    bcn.Metadatos          `json:"metadatos"`
+	Estructura   []bcn.StructurePartOut `json:"estructura"`
+	Proyectos    []bcn.Proyecto         `json:"proyectos"`
+	Content      string                 `json:"content,omitempty"`
+	VersionDate  string                 `json:"version_date,omitempty"`
+	SectionID    int64                  `json:"section_id,omitempty"`
+	CharCount    int                    `json:"char_count"`
+	ArticleCount int                    `json:"article_count"`
 }
 
 // RegisterGetLaw registers the get_law tool on the MCP server.
 func RegisterGetLaw(srv *mcp.Server, client bcn.LawClient) {
 	mcp.AddTool(srv, &mcp.Tool{
 		Name: "get_law",
-		Description: "Get the full content of a Chilean law, decree or resolution by its norm_id " +
-			"(from search_laws). Returns metadata, the table of contents and the complete text " +
-			"in Markdown. Use structure_only=true to explore a long norm without its content.",
+		Description: "Get the content of a Chilean law, decree or resolution by its norm_id " +
+			"(from search_laws). Returns metadata, the table of contents and the text in " +
+			"Markdown. Warning: long norms can exceed hundreds of thousands of characters — " +
+			"prefer get_law_summary first, then structure_only=true to explore, then " +
+			"section_id to read only the parts you need.",
 	}, makeGetLaw(client))
 }
 
@@ -60,6 +59,9 @@ func makeGetLaw(client bcn.LawClient) mcp.ToolHandlerFor[GetLawArgs, GetLawOutpu
 		if err := validateVersionDate(args.VersionDate); err != nil {
 			return errorResult(err.Error()), GetLawOutput{}, nil
 		}
+		if args.SectionID < 0 {
+			return errorResult("section_id must be a positive number"), GetLawOutput{}, nil
+		}
 
 		query := bcn.NormaQuery{NormID: args.NormID, VersionDate: args.VersionDate}
 		norma, err := client.GetNorma(ctx, query)
@@ -68,6 +70,15 @@ func makeGetLaw(client bcn.LawClient) mcp.ToolHandlerFor[GetLawArgs, GetLawOutpu
 				return errorResult(fmt.Sprintf("norma not found: norm_id %d does not exist in LeyChile", args.NormID)), GetLawOutput{}, nil
 			}
 			return errorResult(fmt.Sprintf("get law failed: %v", err)), GetLawOutput{}, nil
+		}
+
+		// Semantic validation needs the norm's structure, so it runs after
+		// the fetch (ETag-cached anyway). The error teaches the recovery
+		// path instead of leaving the agent guessing.
+		if args.SectionID > 0 {
+			if _, ok := norma.SectionContent(args.SectionID); !ok {
+				return errorResult(fmt.Sprintf("section not found: section_id %d does not exist in this norm — call get_law with structure_only=true to list valid section ids", args.SectionID)), GetLawOutput{}, nil
+			}
 		}
 
 		output := buildGetLawOutput(norma, args)
@@ -79,44 +90,56 @@ func makeGetLaw(client bcn.LawClient) mcp.ToolHandlerFor[GetLawArgs, GetLawOutpu
 	}
 }
 
-// buildGetLawOutput projects the norm into the structured output. Content
-// (the Markdown body) is omitted when structureOnly is set.
-func buildGetLawOutput(norma bcn.NormaFull, args GetLawArgs) GetLawOutput {
-	var estructura []StructurePartOut
-	flattenStructure(norma.Estructura, 0, &estructura)
-	out := GetLawOutput{
-		Metadatos:   norma.Metadatos,
-		Estructura:  estructura,
-		Proyectos:   norma.Proyectos,
-		VersionDate: args.VersionDate,
+// contentBlocks returns the block subtree this response renders: the whole
+// norm, or the section subtree when SectionID is set (falling back to the
+// whole norm when the section does not exist — the handler validates first).
+func contentBlocks(norma bcn.NormaFull, args GetLawArgs) []bcn.HtmlBlock {
+	if args.SectionID > 0 {
+		if subtree, ok := norma.SectionContent(args.SectionID); ok {
+			return subtree
+		}
 	}
-	if !args.StructureOnly {
-		out.Content = normaContentMarkdown(norma)
-	}
-	return out
+	return norma.Html
 }
 
-// flattenStructure walks the nested structure tree into a depth-annotated
-// flat list (schema-safe for the structured output).
-func flattenStructure(parts []bcn.EstructuraPart, depth int, out *[]StructurePartOut) {
-	for _, p := range parts {
-		*out = append(*out, StructurePartOut{Name: p.N, ID: p.I, Type: p.T, Depth: depth})
-		flattenStructure(p.H, depth+1, out)
+// buildGetLawOutput projects the norm into the structured output. Content
+// (the Markdown body) is omitted when structureOnly is set. The counts
+// describe the content returned: the section when SectionID is set, the
+// whole norm otherwise.
+func buildGetLawOutput(norma bcn.NormaFull, args GetLawArgs) GetLawOutput {
+	blocks := contentBlocks(norma, args)
+	articleCount := norma.CountArticles()
+	if args.SectionID > 0 {
+		articleCount = norma.CountSectionArticles(args.SectionID)
 	}
+	out := GetLawOutput{
+		Metadatos:    norma.Metadatos,
+		Estructura:   bcn.FlattenStructure(norma.Estructura),
+		Proyectos:    norma.Proyectos,
+		VersionDate:  args.VersionDate,
+		SectionID:    args.SectionID,
+		CharCount:    bcn.ContentCharCount(blocks),
+		ArticleCount: articleCount,
+	}
+	if !args.StructureOnly {
+		out.Content = normaContentMarkdown(blocks)
+	}
+	return out
 }
 
 // normaContentMarkdown assembles the content section of a norm. Blocks nest
 // (titles contain articles): each block gets a heading at its depth and its
 // own text only when it has no children — a title block's body repeats the
 // title, so it is skipped in favor of its children.
-func normaContentMarkdown(norma bcn.NormaFull) string {
+func normaContentMarkdown(blocks []bcn.HtmlBlock) string {
 	var b strings.Builder
-	renderBlocks(&b, norma.Html, 0)
+	renderBlocks(&b, blocks, 0)
 	return b.String()
 }
 
 // renderBlocks walks the block tree, heading depth grows with nesting
-// (max ######).
+// (max ######). bcn.ContentCharCount mirrors this rendering — keep the
+// two in sync when either changes.
 func renderBlocks(b *strings.Builder, blocks []bcn.HtmlBlock, depth int) {
 	for _, block := range blocks {
 		heading := block.SectionName
@@ -138,10 +161,19 @@ func renderBlocks(b *strings.Builder, blocks []bcn.HtmlBlock, depth int) {
 	}
 }
 
-// formatNorma renders a norm for the LLM: metadata header, related bills,
-// table of contents, and (unless structureOnly) the full Markdown content.
-// When a historical version was requested, the header states it.
+// formatNorma renders a norm for the LLM: metadata header with the size
+// and (when sectioned) the section name, related bills, table of contents,
+// and (unless structureOnly) the Markdown content — the whole norm or just
+// the requested section. When a historical version was requested, the
+// header states it.
 func formatNorma(norma bcn.NormaFull, args GetLawArgs) string {
+	blocks := contentBlocks(norma, args)
+	articleCount := norma.CountArticles()
+	if args.SectionID > 0 {
+		articleCount = norma.CountSectionArticles(args.SectionID)
+	}
+	charCount := bcn.ContentCharCount(blocks)
+
 	var b strings.Builder
 	m := norma.Metadatos
 
@@ -158,6 +190,10 @@ func formatNorma(norma bcn.NormaFull, args GetLawArgs) string {
 		fmt.Fprintf(&b, " to %s", m.Vigencia.FinVigencia)
 	}
 	fmt.Fprintf(&b, "\nDerogated: %t\n", m.Derogado)
+	fmt.Fprintf(&b, "Size: %s chars · %s\n", humanCount(charCount), formatArticles(articleCount))
+	if args.SectionID > 0 {
+		fmt.Fprintf(&b, "Section: %s\n", sectionHeading(blocks, args.SectionID))
+	}
 	if len(m.Materias) > 0 {
 		fmt.Fprintf(&b, "Subjects: %s\n", strings.Join(m.Materias, ", "))
 	}
@@ -171,17 +207,24 @@ func formatNorma(norma bcn.NormaFull, args GetLawArgs) string {
 		}
 		fmt.Fprintf(&b, "Related norms: %s\n", strings.Join(links, "; "))
 	}
-	if len(m.Resumenes) > 0 {
-		fmt.Fprintf(&b, "\nSummary: %s\n", truncate(m.Resumenes[0], 1200))
-	}
 
-	if len(norma.Proyectos) > 0 {
-		b.WriteString("\n## Related bills\n")
-		for _, p := range norma.Proyectos {
-			for _, pl := range p.Pls {
-				fmt.Fprintf(&b, "- %s — %s\n", pl.NroBoletin, pl.Informacion)
-				if pl.Enlace != "" {
-					fmt.Fprintf(&b, "  %s\n", pl.Enlace)
+	// The section view stays lightweight: the summary and related bills are
+	// skipped in the TEXT when drilling into a section (they repeat what the
+	// summary call already showed and they ride along complete in
+	// structuredContent). The table of contents stays — it is what lets the
+	// agent chain the next section without another call.
+	if args.SectionID == 0 {
+		if len(m.Resumenes) > 0 {
+			fmt.Fprintf(&b, "\nSummary: %s\n", truncate(m.Resumenes[0], 1200))
+		}
+		if len(norma.Proyectos) > 0 {
+			b.WriteString("\n## Related bills\n")
+			for _, p := range norma.Proyectos {
+				for _, pl := range p.Pls {
+					fmt.Fprintf(&b, "- %s — %s\n", pl.NroBoletin, pl.Informacion)
+					if pl.Enlace != "" {
+						fmt.Fprintf(&b, "  %s\n", pl.Enlace)
+					}
 				}
 			}
 		}
@@ -192,10 +235,38 @@ func formatNorma(norma bcn.NormaFull, args GetLawArgs) string {
 
 	if !args.StructureOnly {
 		b.WriteString("\n## Content\n\n")
-		b.WriteString(normaContentMarkdown(norma))
+		b.WriteString(normaContentMarkdown(blocks))
 	}
 
 	return b.String()
+}
+
+// sectionHeading names the requested section for the header line.
+func sectionHeading(blocks []bcn.HtmlBlock, sectionID int64) string {
+	if len(blocks) > 0 && blocks[0].SectionName != "" {
+		return blocks[0].SectionName
+	}
+	return fmt.Sprintf("Section %d", sectionID)
+}
+
+// humanCount formats a count for the LLM: the number itself under 1000,
+// one decimal up to 10K ("3.2K"), a compact "426K" above.
+func humanCount(n int) string {
+	if n < 1000 {
+		return strconv.Itoa(n)
+	}
+	if n < 10000 {
+		return fmt.Sprintf("%.1fK", float64(n)/1000)
+	}
+	return fmt.Sprintf("%.0fK", float64(n)/1000)
+}
+
+// formatArticles renders the article count with singular/plural.
+func formatArticles(n int) string {
+	if n == 1 {
+		return "1 article"
+	}
+	return fmt.Sprintf("%d articles", n)
 }
 
 // renderStructure renders the nested table of contents as an indented list.
