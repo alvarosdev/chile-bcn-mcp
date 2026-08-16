@@ -22,10 +22,13 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -trimpath -ldflags="-s -w -X github.com/alvarosdev/chile-bcn-mcp/internal/version.Version=${VERSION}" -o /out/chile-bcn-mcp ./cmd/chile-bcn-mcp
 
-
 # Stage 2: Runtime
 FROM gcr.io/distroless/static-debian13:nonroot
 COPY --from=builder /out/chile-bcn-mcp /usr/local/bin/
+
+# API resources and prompts are baked into the binary via go:embed
+# (internal/config/api.resources.yaml and internal/prompts/prompts.yaml)
+# — no external config required at runtime.
 
 ENV GOMEMLIMIT=256MiB
 
