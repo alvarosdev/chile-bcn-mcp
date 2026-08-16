@@ -83,7 +83,8 @@ func makeSearchLaws(client bcn.LawClient) mcp.ToolHandlerFor[SearchLawsArgs, Sea
 
 // buildSearchOutput projects the search response into the structured output.
 func buildSearchOutput(result bcn.SearchResponse, args SearchLawsArgs) SearchLawsOutput {
-	totalPages := (result.Pagination.TotalItems + args.PageSize - 1) / args.PageSize
+	total := int(result.Pagination.TotalItems)
+	totalPages := (total + args.PageSize - 1) / args.PageSize
 	if totalPages < 1 {
 		totalPages = 1
 	}
@@ -91,7 +92,7 @@ func buildSearchOutput(result bcn.SearchResponse, args SearchLawsArgs) SearchLaw
 		Query:      result.Pagination.Query,
 		Page:       args.Page,
 		PageSize:   args.PageSize,
-		TotalItems: result.Pagination.TotalItems,
+		TotalItems: total,
 		TotalPages: totalPages,
 		Results:    make([]SearchResultOut, 0, len(result.Results)),
 	}
@@ -114,14 +115,15 @@ func buildSearchOutput(result bcn.SearchResponse, args SearchLawsArgs) SearchLaw
 // to fetch the full content. The summary is truncated for the model; the
 // structured output carries the complete one.
 func formatSearchResults(result bcn.SearchResponse, args SearchLawsArgs) string {
-	totalPages := (result.Pagination.TotalItems + args.PageSize - 1) / args.PageSize
+	total := int(result.Pagination.TotalItems)
+	totalPages := (total + args.PageSize - 1) / args.PageSize
 	if totalPages < 1 {
 		totalPages = 1
 	}
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "Search results for %q — page %d of %d (%d total results)\n\n",
-		result.Pagination.Query, args.Page, totalPages, result.Pagination.TotalItems)
+		result.Pagination.Query, args.Page, totalPages, total)
 
 	for i, norma := range result.Results {
 		fmt.Fprintf(&b, "%d. %s | %s | norm_id: %d\n", i+1, norma.Norma, norma.Tipo, norma.IDNorma)
