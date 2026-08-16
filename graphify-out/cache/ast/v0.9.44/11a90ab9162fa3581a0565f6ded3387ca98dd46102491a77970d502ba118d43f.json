@@ -1,0 +1,1 @@
+{"nodes": [{"id": "$graphify-root$_internal_bcn_race_enabled_go", "label": "race_enabled.go", "file_type": "code", "source_file": "internal/bcn/race_enabled.go", "source_location": "L1"}], "edges": [], "raw_calls": [], "go_imports": {}}

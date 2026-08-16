@@ -118,7 +118,7 @@ func (s *LawClientSuite) TestSearchParsesRealResponse() {
 	})
 	s.Require().NoError(err)
 	s.Require().Len(result.Results, 3)
-	s.Equal(140, result.Pagination.TotalItems)
+	s.Equal(FlexInt(140), result.Pagination.TotalItems)
 
 	first := result.Results[0]
 	s.Equal(int64(1195666), first.IDNorma)
@@ -128,6 +128,55 @@ func (s *LawClientSuite) TestSearchParsesRealResponse() {
 	s.NotContains(first.Resumen, "<RESUMENES>")
 	s.Contains(first.Resumen, "Servicio de Biodiversidad")
 	s.NotContains(first.Resumen, " ")
+}
+
+func (s *LawClientSuite) TestSearchParsesNumericPagination() {
+	// Real wire captured from buscarjson for "Ley 21461": the pagination
+	// block mixes shapes in ONE response — npagina arrives as a string
+	// while itemsporpagina and totalitems arrive as numbers. The old
+	// string-typed Pagination crashed here with "cannot unmarshal number".
+	searchJSON := s.fixture("search_response_numeric.json")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(searchJSON)
+	}))
+	defer server.Close()
+
+	client := NewClient(s.testResources(server.URL), s.logger())
+	result, err := client.Search(context.Background(), SearchParams{
+		Query: "Ley 21461", Page: 1, PageSize: 10,
+	})
+	s.Require().NoError(err)
+
+	// Mixed shapes decode field by field.
+	s.Equal(FlexInt(4), result.Pagination.TotalItems)
+	s.Equal(FlexInt(1), result.Pagination.Page)
+	s.Equal(FlexInt(4), result.Pagination.PageSize)
+	s.Equal("Ley 21461", result.Pagination.Query)
+
+	// Ley 21461 is the first result, with the id the tools depend on.
+	s.Require().NotEmpty(result.Results)
+	s.Equal(int64(1178004), result.Results[0].IDNorma)
+}
+
+func (s *LawClientSuite) TestSearchParsesEmptyAndNullPagination() {
+	// Empty string and null numeric fields decode to 0 instead of failing
+	// the whole search; the string-shaped fixture above stays as the
+	// regression for the all-strings wire.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[[], {"npagina": null, "itemsporpagina": "10", "totalitems": ""}, []]`))
+	}))
+	defer server.Close()
+
+	client := NewClient(s.testResources(server.URL), s.logger())
+	result, err := client.Search(context.Background(), SearchParams{
+		Query: "x", Page: 1, PageSize: 10,
+	})
+	s.Require().NoError(err)
+	s.Equal(FlexInt(0), result.Pagination.TotalItems)
+	s.Equal(FlexInt(0), result.Pagination.Page)
+	s.Equal(FlexInt(10), result.Pagination.PageSize)
 }
 
 func (s *LawClientSuite) TestSearchRetriesTransient5xx() {

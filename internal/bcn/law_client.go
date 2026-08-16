@@ -157,11 +157,15 @@ type Norma struct {
 }
 
 // Pagination reports the total result count so callers can page through.
+// The numeric fields decode through FlexInt: buscarjson alternates between
+// strings ("3") and numbers (3) for the same fields depending on the query
+// (e.g. "Ley 21.600" answers strings, "Ley 21461" answers numbers) — a
+// plain string type crashed the decode on the numeric shape.
 type Pagination struct {
-	TotalItems int    `json:"totalitems"`
-	Page       string `json:"npagina"`
-	PageSize   string `json:"itemsporpagina"`
-	Query      string `json:"cadena"`
+	TotalItems FlexInt `json:"totalitems"`
+	Page       FlexInt `json:"npagina"`
+	PageSize   FlexInt `json:"itemsporpagina"`
+	Query      string  `json:"cadena"`
 }
 
 // NormaFull is the full structured content of one norm.
@@ -374,7 +378,7 @@ func (c *Client) Search(ctx context.Context, params SearchParams) (SearchRespons
 	}
 	c.logger.Debug("bcn search ok",
 		"results", len(result.Results),
-		"total_items", result.Pagination.TotalItems,
+		"total_items", int(result.Pagination.TotalItems),
 	)
 	return result, nil
 }

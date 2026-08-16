@@ -53,7 +53,7 @@ func (s *SearchLawsSuite) TestSearchSuccess() {
 			Organismo:        "MINISTERIO DEL MEDIO AMBIENTE",
 			Resumen:          "La presente ley crea el Servicio.",
 		}},
-		Pagination: bcn.Pagination{TotalItems: 140, Page: "1", PageSize: "10", Query: "Ley 21.600"},
+		Pagination: bcn.Pagination{TotalItems: 140, Page: 1, PageSize: 10, Query: "Ley 21.600"},
 	}, nil).Once()
 
 	res, err := s.callTool(map[string]any{"query": "Ley 21.600"})

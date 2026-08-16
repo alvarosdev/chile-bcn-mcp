@@ -60,3 +60,14 @@ internal/tools/               ← las 3 tools MCP: capa de presentación (valida
 7. **Sanitizer**: limpia basura de FORMATO (nbsp, `div.p` vacíos → colapsar 3+ newlines, XML wrapper, control chars); NUNCA toca contenido legal (comillas de texto insertado, enlaces a normas) — es semántica jurídica.
 8. **Protocolo MCP**: go-sdk v1.7.0 soporta las 5 versiones del spec y negocia por sesión. El `initialize` legacy está deprecado en 2026-07-28: el SDK capa esa vía en `2025-11-25` (verificado empíricamente) — un cliente que pide 2026-07-28 recibe 2025-11-25, es correcto. El smoke lo acepta explícitamente.
 9. **Etiquetas de tools/interface en INGLÉS**; los datos crudos del dominio (texto legal español, campos como `idNorma`) se mantienen tal cual. La traducción termina en la frontera: `norm_id` (tool) → `idNorma` (query param).
+10. **buscarjson alterna string|number EN LA MISMA respuesta**: la paginación mezcla formas por campo según la query (Ley 21.600 → `"npagina":"1"` string; Ley 21461 → `"npagina":"1"` string pero `"itemsporpagina":4` y `"totalitems":4` números — wire real en `internal/bcn/testdata/search_response_numeric.json`). Los campos numéricos de `Pagination` usan `FlexInt` (`internal/bcn/flexint.go`): acepta string/number/trim/`10.0`, `""`/`null` → 0, y falla ruidoso ante basura no numérica. Nunca volver a tiparlos `string`/`int` planos.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).

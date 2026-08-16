@@ -46,7 +46,7 @@ mock: ## Regenerate mocks (mockery, declared as a Go tool)
 	go tool mockery
 
 vuln: ## Scan dependencies for known vulnerabilities (govulncheck, pinned)
-	go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
 check: ## Full local verification, same as CI: build + vet + test
 	$(MAKE) build vet test
