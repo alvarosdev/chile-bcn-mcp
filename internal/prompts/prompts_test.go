@@ -56,7 +56,7 @@ func (s *PromptsSuite) TestListPrompts() {
 	expected := []string{
 		"analyze_law", "search_legal_topic", "compare_law_versions",
 		"trace_law_history", "check_law_validity", "explain_law_simply",
-		"law_research_workflow",
+		"law_research_workflow", "answer_constitutional_question", "check_norm_constitutionality",
 	}
 	for _, name := range expected {
 		p, ok := names[name]
@@ -67,12 +67,22 @@ func (s *PromptsSuite) TestListPrompts() {
 		for _, a := range p.Arguments {
 			required[a.Name] = a.Required
 		}
-		if name != "search_legal_topic" {
-			s.True(required["norm_id"], "prompt %s: norm_id must be required", name)
-		} else {
+		switch name {
+		case "search_legal_topic":
 			s.True(required["topic"], "prompt %s: topic must be required", name)
+		case "answer_constitutional_question":
+			s.True(required["question"], "prompt %s: question must be required", name)
+			s.False(required["article_hint"], "prompt %s: article_hint must be optional", name)
+			s.False(required["version_date"], "prompt %s: version_date must be optional", name)
+		case "check_norm_constitutionality":
+			s.True(required["norm_id"], "prompt %s: norm_id must be required", name)
+			s.False(required["question"], "prompt %s: question must be optional", name)
+			s.False(required["version_date"], "prompt %s: version_date must be optional", name)
+		default:
+			s.True(required["norm_id"], "prompt %s: norm_id must be required", name)
 		}
 	}
+	s.Len(names, len(expected), "unexpected number of prompts")
 	// Optional arguments stay optional.
 	analyze := names["analyze_law"]
 	for _, a := range analyze.Arguments {
@@ -148,6 +158,9 @@ func (s *PromptsSuite) TestTemplatesReferenceOnlyRegisteredTools() {
 	all += s.getPrompt("trace_law_history", map[string]string{"norm_id": "1"})
 	all += s.getPrompt("check_law_validity", map[string]string{"norm_id": "1"})
 	all += s.getPrompt("explain_law_simply", map[string]string{"norm_id": "1"})
+	all += s.getPrompt("law_research_workflow", map[string]string{"norm_id": "1"})
+	all += s.getPrompt("answer_constitutional_question", map[string]string{"question": "q"})
+	all += s.getPrompt("check_norm_constitutionality", map[string]string{"norm_id": "1"})
 
 	for _, tool := range ToolNames() {
 		s.True(strings.Contains(all, tool), "tool %s not referenced by any template", tool)
@@ -156,4 +169,62 @@ func (s *PromptsSuite) TestTemplatesReferenceOnlyRegisteredTools() {
 	for _, candidate := range []string{"get_norma", "fetch_law", "search_norms"} {
 		s.False(strings.Contains(all, candidate), "template references unregistered tool %q", candidate)
 	}
+}
+
+func (s *PromptsSuite) TestAnswerConstitutionalQuestionInjectsQuestion() {
+	text := s.getPrompt("answer_constitutional_question", map[string]string{"question": "¿qué dice sobre el derecho de propiedad?"})
+	s.Contains(text, "¿qué dice sobre el derecho de propiedad?")
+	s.Contains(text, "get_law_summary(norm_id=242302)")
+	s.Contains(text, "section_id=<section id>")
+	s.Contains(text, "242302")
+	s.Contains(text, "DISPOSICIONES TRANSITORIAS")
+	s.Contains(text, "NEVER invent articles")
+	s.Contains(text, "not legal advice")
+	s.Contains(text, "Tribunal Constitucional")
+	s.Contains(text, "podría interpretarse como")
+}
+
+func (s *PromptsSuite) TestAnswerConstitutionalQuestionWithHintAndVersion() {
+	text := s.getPrompt("answer_constitutional_question", map[string]string{"question": "q", "article_hint": "19 Nº24", "version_date": "2019-01-01"})
+	s.Contains(text, "19 Nº24")
+	s.Contains(text, "version_date=2019-01-01")
+	s.Contains(text, "Version: as of")
+
+	withoutVersion := s.getPrompt("answer_constitutional_question", map[string]string{"question": "q"})
+	s.NotContains(withoutVersion, "version_date=")
+}
+
+func (s *PromptsSuite) TestCheckNormConstitutionalityInjectsNormID() {
+	text := s.getPrompt("check_norm_constitutionality", map[string]string{"norm_id": "1195666"})
+	s.Contains(text, "1195666")
+	s.Contains(text, "242302")
+	s.Contains(text, "get_law_summary(norm_id=1195666")
+	s.Contains(text, "get_law_summary(norm_id=242302")
+	s.Contains(text, "section_id=<section id>")
+	s.Contains(text, "get_law_history")
+	s.Contains(text, "not legal advice")
+	s.Contains(text, "Tribunal Constitucional")
+}
+
+func (s *PromptsSuite) TestCheckNormConstitutionalityWithQuestionAndVersion() {
+	text := s.getPrompt("check_norm_constitutionality", map[string]string{"norm_id": "1195666", "question": "¿vulnera igualdad?", "version_date": "2020-06-01"})
+	s.Contains(text, "1195666")
+	s.Contains(text, "¿vulnera igualdad?")
+	s.Contains(text, "version_date=2020-06-01")
+	s.Contains(text, "Version: as of")
+	s.Contains(text, "DISPOSICIONES TRANSITORIAS")
+
+	withoutVersion := s.getPrompt("check_norm_constitutionality", map[string]string{"norm_id": "1195666"})
+	s.NotContains(withoutVersion, "version_date=")
+}
+
+func (s *PromptsSuite) TestConstitutionalPromptsMentionHedgeAndDisclaimer() {
+	a := s.getPrompt("answer_constitutional_question", map[string]string{"question": "q"})
+	s.Contains(a, "podría interpretarse como")
+	s.Contains(a, "general information, not legal advice")
+
+	c := s.getPrompt("check_norm_constitutionality", map[string]string{"norm_id": "1"})
+	s.Contains(c, "podría interpretarse como")
+	s.Contains(c, "not legal advice")
+	s.Contains(c, "Art. X")
 }
