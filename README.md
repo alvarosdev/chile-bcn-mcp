@@ -217,7 +217,7 @@ Busca la Ley 21.600
 
 ## Prompts
 
-The server also exposes six **curated prompts** — server-side templates that guide the model through the correct workflow for each task. They encode the domain rules (read summaries before opening norms, verify against the actual text, never invent articles) so clients don't need a custom system prompt.
+The server also exposes nine **curated prompts** — server-side templates that guide the model through the correct workflow for each task. They encode the domain rules (read summaries before opening norms, verify against the actual text, never invent articles) so clients don't need a custom system prompt.
 
 | Prompt | Arguments | When to use |
 |--------|-----------|-------------|
@@ -227,6 +227,9 @@ The server also exposes six **curated prompts** — server-side templates that g
 | **`trace_law_history`** | `norm_id`* | Trace which laws modified a norm, with the correct LeyChile ids |
 | **`check_law_validity`** | `norm_id`*, `date` | In force / derogated / in force at a given date |
 | **`explain_law_simply`** | `norm_id`*, `audience` | Plain-language explanation with citations and a no-legal-advice disclaimer |
+| **`law_research_workflow`** | `norm_id`*, `question` | Efficient section-by-section reading via `get_law_summary` → `section_id` |
+| **`answer_constitutional_question`** | `question`*, `article_hint`, `version_date` | Q&A about the Chilean Constitution (Decreto 100, 242302) via TOC + `section_id`, with hedge + disclaimer |
+| **`check_norm_constitutionality`** | `norm_id`*, `question`, `version_date` | Contrast a norm vs the Constitution side-by-side, citing both, with version support |
 
 (* = required)
 

@@ -30,7 +30,7 @@ func ToolNames() []string {
 // and returns the message text. Pure — no external calls.
 type template func(args map[string]string) string
 
-// RegisterPrompts registers the seven curated prompts on the MCP server.
+// RegisterPrompts registers the nine curated prompts on the MCP server.
 func RegisterPrompts(srv *mcp.Server) {
 	add := func(p *mcp.Prompt, t template) {
 		srv.AddPrompt(p, func(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
@@ -111,6 +111,27 @@ func RegisterPrompts(srv *mcp.Server) {
 			{Name: "question", Title: "Question", Description: "Optional research question to focus the reading", Required: false},
 		},
 	}, lawResearchWorkflowTemplate)
+	add(&mcp.Prompt{
+		Name:        "answer_constitutional_question",
+		Title:       "Answer a constitutional question",
+		Description: "Answer a question about the Chilean Constitution (Decreto 100, 242302): locate the relevant chapters/articles via the table of contents and cite the actual text. Supports historical versions via version_date.",
+		Arguments: []*mcp.PromptArgument{
+			{Name: "question", Title: "Question", Description: "The constitutional question to answer (e.g. '¿qué dice sobre el derecho de propiedad?')", Required: true},
+			{Name: "article_hint", Title: "Article hint", Description: "Optional article hint (free text, e.g. '19', '19 Nº24', '93', 'transitoria primera') to prioritize a TOC entry", Required: false},
+			{Name: "version_date", Title: "Version date", Description: "Optional version in force at this date (YYYY-MM-DD) — defaults to the latest version", Required: false},
+		},
+	}, answerConstitutionalQuestionTemplate)
+
+	add(&mcp.Prompt{
+		Name:        "check_norm_constitutionality",
+		Title:       "Check norm vs Constitution",
+		Description: "Assess whether a norm is compatible with the Chilean Constitution (Decreto 100, 242302) by contrasting the relevant sections side-by-side. Supports historical versions via version_date.",
+		Arguments: []*mcp.PromptArgument{
+			{Name: "norm_id", Title: "Norm id", Description: "The norm id (norm_id) from search_laws results of the norm to contrast", Required: true},
+			{Name: "question", Title: "Question", Description: "Optional focus question (e.g. '¿vulnera igualdad ante la ley?')", Required: false},
+			{Name: "version_date", Title: "Version date", Description: "Optional version in force at this date (YYYY-MM-DD) — applied to both norms for temporal coherence", Required: false},
+		},
+	}, checkNormConstitutionalityTemplate)
 }
 
 // analyzeLawTemplate is the structured legal analysis flow.
@@ -211,4 +232,74 @@ Step 2: read the structure and call %s(norm_id=%s, section_id=<section id>) ONLY
 
 For every claim, cite the article number. NEVER invent articles or content — verify everything against the actual returned text.`,
 		args["norm_id"], question, toolGetLawSummary, args["norm_id"], toolGetLaw, args["norm_id"], toolGetLaw)
+}
+
+// answerConstitutionalQuestionTemplate answers a question about the CPR (Decreto 100, 242302).
+// The Constitution is ~410K chars, so the template forces the economical flow
+// get_law_summary → section_id → get_law(section_id), including DISPOSICIONES TRANSITORIAS.
+func answerConstitutionalQuestionTemplate(args map[string]string) string {
+	question := args["question"]
+	hint := args["article_hint"]
+	versionDate := args["version_date"]
+
+	hintPart := ""
+	if hint != "" {
+		hintPart = fmt.Sprintf(" Article hint: %s (fuzzy match against Estructura[].n, e.g. \"19\" → Artículo 19, \"transitoria primera\" → Disposición Transitoria PRIMERA).", hint)
+	}
+	versionPart := ""
+	versionArg := ""
+	versionArgLaw := ""
+	if versionDate != "" {
+		versionPart = fmt.Sprintf(" Version date: %s — the \"Version: as of\" line confirms which version you read.", versionDate)
+		versionArg = fmt.Sprintf(", version_date=%s", versionDate)
+		versionArgLaw = fmt.Sprintf(" (version_date=%s)", versionDate)
+	}
+	return fmt.Sprintf(`Answer the constitutional question "%s" about the Chilean Constitution (Decreto 100, norm_id=242302).%s%s
+
+Step 1: call %s(norm_id=242302%s) — it returns the Size and the table of contents with section_ids (Chapters I-XV and DISPOSICIONES TRANSITORIAS). Read the Structure to map the question to 1-3 relevant section_ids. If article_hint is provided ("%s"), prioritize the entry matching that hint (fuzzy match against Estructura[].n); otherwise map question keywords to chapter/article names (e.g. "propiedad" → Capítulo III, "plebiscito 2022" → DISPOSICIONES TRANSITORIAS → VIGÉSIMAQUINTA).
+
+Step 2: call %s(norm_id=242302, section_id=<section id>%s) ONLY for the sections identified. NEVER call %s without section_id — the Constitution is ~410K chars; the Size line tells you whether a section is short. When a transitory provision modifies a permanent article (e.g. transitoria mentioning Art. 142), cite both. Also consider DISPOSICIONES TRANSITORIAS as eligible sections when the question mentions reforma/plebiscito/vigencia/transitoria.
+
+For every claim, cite the source article (e.g. Art. 19 Nº24). NEVER invent articles or content — verify everything against the actual returned text%s.
+
+Interpret the text conditionally: use "conforme al texto retornado ... podría interpretarse como (in)compatible/constitucional/inconstitucional, en la medida que ..." This is general information, not legal advice; the binding qualification corresponds to the Tribunal Constitucional. Verify in the official text at bcn.cl and consult a qualified professional.`,
+		question, hintPart, versionPart, toolGetLawSummary, versionArg, hint, toolGetLaw, versionArg, toolGetLaw, versionArgLaw)
+}
+
+// checkNormConstitutionalityTemplate contrasts a norm against the CPR (Decreto 100, 242302).
+func checkNormConstitutionalityTemplate(args map[string]string) string {
+	normID := args["norm_id"]
+	question := args["question"]
+	versionDate := args["version_date"]
+
+	questionPart := ""
+	if question != "" {
+		questionPart = fmt.Sprintf(" Focus: %s.", question)
+	}
+	versionPart := ""
+	versionArg := ""
+	if versionDate != "" {
+		versionPart = fmt.Sprintf(" Version date: %s (applied to both norms for temporal coherence) — the \"Version: as of\" line confirms the version.", versionDate)
+		versionArg = fmt.Sprintf(", version_date=%s", versionDate)
+	}
+	questionArg := ""
+	if question != "" {
+		questionArg = fmt.Sprintf(" Question: %s.", question)
+	}
+	return fmt.Sprintf(`Assess whether Chilean norm %s is compatible with the Chilean Constitution (Decreto 100, norm_id=242302).%s%s%s
+
+Step 1: call %s(norm_id=%s%s) for the target norm and %s(norm_id=242302%s) for the Constitution — both with version_date if provided, to keep temporal coherence. Each summary gives the Size and TOC with section_ids (including DISPOSICIONES TRANSITORIAS).
+
+Step 2: from both TOCs select the 1-3 most relevant sections (using question "%s" if provided or the summaries). Include DISPOSICIONES TRANSITORIAS when the question mentions reforma/plebiscito/vigencia/transitoria.
+
+Step 3: call %s(norm_id=%s, section_id=<section id>%s) and %s(norm_id=242302, section_id=<section id>%s) for each selected section. NEVER call %s without section_id unless the Size line shows a short norm.
+
+Step 4: present a side-by-side textual parallelism "Art. X of norm %s says ... | Art. Z CPR says ..." citing articles of both norms, and analyze compatibility conditionally ("conforme al texto retornado de Art. X and Art. Z CPR, podría interpretarse como constitucional/inconstitucional, en la medida que ...").
+
+For every claim, cite the article. NEVER invent articles or content — verify against the returned text. The "Version: as of" line confirms the version.
+
+Recommended: call %s(norm_id=%s) if the target norm may have had TC review — if the modificatorias group exists, summarize it.
+
+This analysis is general information, not legal advice; the binding qualification corresponds to the Tribunal Constitucional. Verify at bcn.cl and consult a qualified professional.`,
+		normID, questionArg, questionPart, versionPart, toolGetLawSummary, normID, versionArg, toolGetLawSummary, versionArg, question, toolGetLaw, normID, versionArg, toolGetLaw, versionArg, toolGetLaw, normID, toolGetLawHistory, normID)
 }
