@@ -1,16 +1,16 @@
 # Graph Report - chile-bcn-mcp  (2026-08-15)
 
 ## Corpus Check
-- 108 files · ~111,037 words
+- 108 files · ~111,615 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1088 nodes · 2676 edges · 68 communities (54 shown, 14 thin omitted)
-- Extraction: 51% EXTRACTED · 49% INFERRED · 0% AMBIGUOUS · INFERRED: 1321 edges (avg confidence: 0.83)
+- 1090 nodes · 2650 edges · 65 communities (52 shown, 13 thin omitted)
+- Extraction: 50% EXTRACTED · 50% INFERRED · 0% AMBIGUOUS · INFERRED: 1321 edges (avg confidence: 0.83)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `a3a0dd77`
+- Built from commit: `375797d5`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -30,22 +30,22 @@
 - 2026-08-14-add-release-workflow/specs/release-distributions/spec.md
 - 2026-08-14-add-bcn-leychile-tools/design.md
 - <capability> Specification
-- Client
+- NormaFull
 - 2026-08-14-add-bcn-leychile-tools/tasks.md
-- prompts.go
+- PromptsSuite
 - context.Context
-- get_law.go
+- Load
 - openspec/specs/container-deployment/spec.md
 - 2026-08-15-add-law-section-retrieval/design.md
 - openspec/specs/mcp-server/spec.md
-- LawClient
-- PromptsSuite
+- get_law.go
+- 2026-08-14-add-law-summary-tool/specs/leychile-search/spec.md
 - 2026-08-15-add-law-section-retrieval/tasks.md
 - Chile BCN MCP Server
 - GetLawSuite
-- law_client.go
-- testing.T
 - Requirement: Paginación tolerante a tipos inconsistentes del servicio
+- testing.T
+- 2026-08-15-fix-pagination-flexint/proposal.md
 - LeyChile API resources contract.
 - etagCache
 - The ONLY release path: a PR from release/v* merged into main.
@@ -58,9 +58,9 @@
 - GetLawSummarySuite
 - SearchLawsSuite
 - 2026-08-14-add-law-history-and-versions/.openspec.yaml
-- NormTreeSuite
+- 2026-08-15-fix-pagination-flexint/design.md
 - GetLawHistorySuite
-- SearchResponse
+- 2026-08-15-fix-pagination-flexint/tasks.md
 - 2026-08-14-add-release-workflow/proposal.md
 - 2026-08-14-remove-echo-tool/.openspec.yaml
 - NormaFull
@@ -73,9 +73,6 @@
 - docker-compose.yml
 - build-dist.sh
 - github.com/alvarosdev/chile-bcn-mcp
-- fix-pagination-flexint/proposal.md
-- fix-pagination-flexint/design.md
-- fix-pagination-flexint/tasks.md
 
 ## God Nodes (most connected - your core abstractions)
 1. `NewClient()` - 30 edges
@@ -85,8 +82,8 @@
 5. `Chile BCN MCP Server` - 16 edges
 6. `PromptsSuite` - 15 edges
 7. `<capability> Specification` - 15 edges
-8. `NormaFull` - 14 edges
-9. `<capability> Specification` - 14 edges
+8. `<capability> Specification` - 14 edges
+9. `SanitizeSuite` - 13 edges
 10. `SanitizeMarkdown()` - 13 edges
 
 ## Surprising Connections (you probably didn't know these)
@@ -96,10 +93,10 @@
   cmd/chile-bcn-mcp/main.go → internal/prompts/prompts.go
 - `main()` --calls--> `RegisterTools()`  [EXTRACTED]
   cmd/chile-bcn-mcp/main.go → internal/tools/tools.go
+- `main()` --calls--> `Load()`  [EXTRACTED]
+  cmd/chile-bcn-mcp/main.go → internal/config/resources.go
 - `get_law` --semantically_similar_to--> `get_law`  [INFERRED] [semantically similar]
   openspec/changes/archive/2026-08-14-add-law-history-and-versions/design.md → openspec/changes/archive/2026-08-14-add-law-history-and-versions/specs/leychile-search/spec.md
-- `get_law` --semantically_similar_to--> `get_law`  [INFERRED] [semantically similar]
-  openspec/changes/archive/2026-08-14-add-law-history-and-versions/proposal.md → openspec/changes/archive/2026-08-14-add-law-history-and-versions/specs/leychile-search/spec.md
 
 ## Import Cycles
 - None detected.
@@ -115,7 +112,7 @@
 - **Change 2026-08-14-remove-echo-tool** — openspec_changes_archive_2026_08_14_remove_echo_tool_design_file, openspec_changes_archive_2026_08_14_remove_echo_tool_design_get_law_summary, openspec_changes_archive_2026_08_14_remove_echo_tool_proposal_capabilities, openspec_changes_archive_2026_08_14_remove_echo_tool_specs_mcp_server_spec_file, openspec_changes_archive_2026_08_14_remove_echo_tool_openspec_created, openspec_changes_archive_2026_08_14_remove_echo_tool_proposal_modified_capabilities, openspec_changes_archive_2026_08_14_remove_echo_tool_design_context, openspec_changes_archive_2026_08_14_remove_echo_tool_specs_mcp_server_spec_get_law [EXTRACTED 1.00]
 - **Change 2026-08-15-add-law-section-retrieval** — openspec_changes_archive_2026_08_15_add_law_section_retrieval_specs_law_prompts_spec_search_legal_topic, openspec_changes_archive_2026_08_15_add_law_section_retrieval_openspec_schema, openspec_changes_archive_2026_08_15_add_law_section_retrieval_design_5_descripciones_que_ense_an_el_flujo, openspec_changes_archive_2026_08_15_add_law_section_retrieval_design_4_validaci_n_fail_fast_de_section_id, openspec_changes_archive_2026_08_15_add_law_section_retrieval_specs_leychile_search_spec_scenario_secci_n_espec_fica, openspec_changes_archive_2026_08_15_add_law_section_retrieval_design_decisions, openspec_changes_archive_2026_08_15_add_law_section_retrieval_design_7_pool_de_converters_paralelizar_conversiones, openspec_changes_archive_2026_08_15_add_law_section_retrieval_specs_law_prompts_spec_requirement_prompts_curados_expuestos [EXTRACTED 1.00]
 
-## Communities (68 total, 14 thin omitted)
+## Communities (65 total, 13 thin omitted)
 
 ### Community 0 - "2026-08-14-add-law-history-and-versions/specs/leychile-search/spec.md"
 Cohesion: 0.11
@@ -138,12 +135,12 @@ Cohesion: 0.17
 Nodes (34): /Consulta/getTiposNorma, Context, Decisions, get_law, get_law_summary, Goals / Non-Goals, idNorma, Migration Plan (+26 more)
 
 ### Community 5 - "2026-08-14-add-law-prompts/proposal.md"
-Cohesion: 0.12
-Nodes (47): Capabilities, get_law, get_law_history(norm_id), get_law_summary, Impact, Modified Capabilities, New Capabilities, What Changes (+39 more)
+Cohesion: 0.17
+Nodes (34): Capabilities, get_law, get_law_history(norm_id), get_law_summary, Impact, Modified Capabilities, New Capabilities, What Changes (+26 more)
 
 ### Community 6 - "NewClient"
-Cohesion: 0.09
-Nodes (21): FlexInt, LawClientSuite, Pagination, main(), runHTTP(), staticTokenAuthMiddleware(), CircuitBreaker, Duration (+13 more)
+Cohesion: 0.14
+Nodes (12): FlexInt, LawClientSuite, main(), runHTTP(), staticTokenAuthMiddleware(), log/slog.Logger, net/http.Handler, NewClient() (+4 more)
 
 ### Community 7 - "2026-08-14-add-law-prompts/tasks.md"
 Cohesion: 0.14
@@ -177,25 +174,21 @@ Nodes (26): chile-bcn-mcp, Context, Decisions, Goals / Non-Goals, godot-mcp-docs
 Cohesion: 0.23
 Nodes (28): ADDED Requirements, <capability> Specification, <capability> Specification, MODIFIED Requirements, Purpose, REMOVED Requirements, RENAMED Requirements, Requirement: Deprecated Feature (+20 more)
 
-### Community 15 - "Client"
-Cohesion: 0.24
-Nodes (7): Client, HistoriaEntrada, golang.org/x/sync/singleflight.Group, sync.Pool, HistoriaGrupo, NormaFull, resty.Client
-
 ### Community 16 - "2026-08-14-add-bcn-leychile-tools/tasks.md"
 Cohesion: 0.20
 Nodes (22): 1. Setup del módulo, 2. Server core, 3. Tools, 4. Entrypoint, 5. Tooling y documentación, 6. Verificación final, cmd/chile-bcn-mcp/, Config (+14 more)
 
-### Community 17 - "prompts.go"
-Cohesion: 0.17
-Nodes (3): RegisterPrompts(), ToolNames(), template
+### Community 17 - "PromptsSuite"
+Cohesion: 0.12
+Nodes (4): RegisterPrompts(), ToolNames(), PromptsSuite, template
 
 ### Community 18 - "context.Context"
-Cohesion: 0.12
-Nodes (14): MockLawClient_Expecter, MockLawClient_GetLawHistory_Call, MockLawClient_GetNorma_Call, MockLawClient_GetNormaSummary_Call, MockLawClient_Search_Call, NormaQuery, SearchParams, context.Context (+6 more)
+Cohesion: 0.05
+Nodes (43): Client, EstructuraPart, HistoriaEntrada, HistoriaGrupo, HtmlBlock, Metadatos, MockLawClient_Expecter, MockLawClient_GetLawHistory_Call (+35 more)
 
-### Community 19 - "get_law.go"
-Cohesion: 0.27
-Nodes (17): strings.Builder, HtmlBlock, ContentCharCount(), buildGetLawOutput(), contentBlocks(), formatArticles(), formatNorma(), formatTipos() (+9 more)
+### Community 19 - "Load"
+Cohesion: 0.22
+Nodes (8): CircuitBreaker, Duration, ResourcesSuite, Retry, Resource, Resources, Load(), yaml.Node
 
 ### Community 20 - "openspec/specs/container-deployment/spec.md"
 Cohesion: 0.25
@@ -209,9 +202,13 @@ Nodes (20): 10. Tope de tamaño de respuesta upstream, 11. Contenedor endurecido
 Cohesion: 0.27
 Nodes (20): FASTMCP_HOST:FASTMCP_PORT, FASTMCP_TRANSPORT, FASTMCP_TRANSPORT=http, FASTMCP_TRANSPORT=stdio, /mcp, Purpose, Requirement: Autenticación opcional por token Bearer, Requirement: Configuración por variables de entorno (+12 more)
 
-### Community 23 - "LawClient"
-Cohesion: 0.21
-Nodes (17): github.com/modelcontextprotocol/go-sdk/mcp.CallToolResult, github.com/modelcontextprotocol/go-sdk/mcp.Server, github.com/modelcontextprotocol/go-sdk/mcp.ToolHandlerFor, LawClient, formatHistoria(), makeGetLawHistory(), RegisterGetLawHistory(), RegisterGetLaw() (+9 more)
+### Community 23 - "get_law.go"
+Cohesion: 0.08
+Nodes (44): NormTreeSuite, github.com/modelcontextprotocol/go-sdk/mcp.CallToolResult, github.com/modelcontextprotocol/go-sdk/mcp.Server, github.com/modelcontextprotocol/go-sdk/mcp.ToolHandlerFor, strings.Builder, LawClient, ContentCharCount(), FlattenStructure() (+36 more)
+
+### Community 24 - "2026-08-14-add-law-summary-tool/specs/leychile-search/spec.md"
+Cohesion: 0.40
+Nodes (13): ADDED Requirements, categorias_norma, get_law, get_law_summary, idNorma, Requirement: Categorías de norma en metadatos, Requirement: Resumen de norma por identificador, Scenario: Identificador faltante (+5 more)
 
 ### Community 25 - "2026-08-15-add-law-section-retrieval/tasks.md"
 Cohesion: 0.29
@@ -221,17 +218,17 @@ Nodes (15): 1. Remoción de echo, 2. Smoke test, 1. Operaciones de árbol en int
 Cohesion: 0.33
 Nodes (17): Available Tools, Build a static binary (outputs to bin/), Chile BCN MCP Server, Container, agent-launched (stdio), Container, self-hosted (HTTP), Cross-platform distributions (6 targets, self-contained with config), Environment Variables, Chile BCN MCP Server (+9 more)
 
-### Community 28 - "law_client.go"
-Cohesion: 0.17
-Nodes (15): Vigencia, Vinculacion, github.com/JohannesKaufmann/html-to-markdown/v2/converter.Converter, io.Reader, enrichCanonicalTypes(), EstructuraPart, Metadatos, NormaFull (+7 more)
-
-### Community 29 - "testing.T"
-Cohesion: 0.17
-Nodes (9): testing.T, TestLawClientSuite(), TestNormTreeSuite(), TestSanitizeSuite(), TestResourcesSuite(), TestLoadConfigDefaults(), TestLoadConfigOverrides(), unsetEnv() (+1 more)
-
-### Community 30 - "Requirement: Paginación tolerante a tipos inconsistentes del servicio"
+### Community 28 - "Requirement: Paginación tolerante a tipos inconsistentes del servicio"
 Cohesion: 0.22
 Nodes (8): ADDED Requirements, Requirement: Paginación tolerante a tipos inconsistentes del servicio, Scenario: Contrato de la tool sin cambios, Scenario: Formatos mixtos y valores vacíos, Scenario: Paginación como string (regresión), Scenario: Paginación numérica, Scenario: Valor no numérico falla explícito, Scenario: Variantes de formato numérico
+
+### Community 29 - "testing.T"
+Cohesion: 0.15
+Nodes (10): testing.T, TestLawClientSuite(), TestNormTreeSuite(), TestSanitizeSuite(), TestResourcesSuite(), TestPromptsSuite(), TestLoadConfigDefaults(), TestLoadConfigOverrides() (+2 more)
+
+### Community 30 - "2026-08-15-fix-pagination-flexint/proposal.md"
+Cohesion: 0.29
+Nodes (6): Capabilities, Impact, Modified Capabilities, New Capabilities, What Changes, Why
 
 ### Community 31 - "LeyChile API resources contract."
 Cohesion: 0.15
@@ -254,8 +251,8 @@ Cohesion: 0.33
 Nodes (7): created, schema, created, schema, created, schema, schema
 
 ### Community 37 - "github.com/stretchr/testify/suite.Suite"
-Cohesion: 0.14
-Nodes (7): FlexIntSuite, normType, NormTypesSuite, github.com/stretchr/testify/suite.Suite, TestFlexIntSuite(), canonicalNormType(), TestNormTypesSuite()
+Cohesion: 0.29
+Nodes (3): FlexIntSuite, github.com/stretchr/testify/suite.Suite, TestFlexIntSuite()
 
 ### Community 38 - "newTestClient"
 Cohesion: 0.31
@@ -269,9 +266,13 @@ Nodes (6): resources, version, resources, version, resources, version
 Cohesion: 0.42
 Nodes (6): created, schema, created, schema, created, schema
 
-### Community 45 - "SearchResponse"
-Cohesion: 0.36
-Nodes (9): Norma, SearchResponse, buildSearchOutput(), formatSearchResults(), makeSearchLaws(), truncate(), SearchLawsArgs, SearchLawsOutput (+1 more)
+### Community 43 - "2026-08-15-fix-pagination-flexint/design.md"
+Cohesion: 0.33
+Nodes (5): Context, Decisions, Goals / Non-Goals, Migration Plan, Risks / Trade-offs
+
+### Community 45 - "2026-08-15-fix-pagination-flexint/tasks.md"
+Cohesion: 0.40
+Nodes (4): 1. Tipo FlexInt, 2. Migración de Pagination, 3. Tests de integración (sin red), 4. Verificación
 
 ### Community 46 - "2026-08-14-add-release-workflow/proposal.md"
 Cohesion: 0.71
@@ -293,35 +294,23 @@ Nodes (4): all, Mockery v3 configuration., packages, template
 Cohesion: 0.83
 Nodes (3): fail(), smoke.sh script, step()
 
-### Community 65 - "fix-pagination-flexint/proposal.md"
-Cohesion: 0.29
-Nodes (6): Capabilities, Impact, Modified Capabilities, New Capabilities, What Changes, Why
-
-### Community 66 - "fix-pagination-flexint/design.md"
-Cohesion: 0.33
-Nodes (5): Context, Decisions, Goals / Non-Goals, Migration Plan, Risks / Trade-offs
-
-### Community 67 - "fix-pagination-flexint/tasks.md"
-Cohesion: 0.40
-Nodes (4): 1. Tipo FlexInt, 2. Migración de Pagination, 3. Tests de integración (sin red), 4. Verificación
-
 ## Knowledge Gaps
-- **47 isolated node(s):** `github.com/alvarosdev/chile-bcn-mcp`, `normType`, `template`, `build-dist.sh script`, `Context` (+42 more)
+- **47 isolated node(s):** `Context`, `Goals / Non-Goals`, `Decisions`, `Risks / Trade-offs`, `Migration Plan` (+42 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **14 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **13 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `NewClient()` connect `NewClient` to `etagCache`, `law_client.go`, `Client`?**
-  _High betweenness centrality (0.019) - this node is a cross-community bridge._
-- **Why does `PromptsSuite` connect `PromptsSuite` to `prompts.go`, `context.Context`, `github.com/stretchr/testify/suite.Suite`, `newTestClient`?**
-  _High betweenness centrality (0.013) - this node is a cross-community bridge._
-- **Why does `newTestClient()` connect `newTestClient` to `context.Context`, `testing.T`, `LawClient`?**
-  _High betweenness centrality (0.011) - this node is a cross-community bridge._
+- **Why does `NewClient()` connect `NewClient` to `etagCache`, `context.Context`, `Load`?**
+  _High betweenness centrality (0.018) - this node is a cross-community bridge._
+- **Why does `newTestClient()` connect `newTestClient` to `context.Context`, `testing.T`, `get_law.go`?**
+  _High betweenness centrality (0.014) - this node is a cross-community bridge._
+- **Why does `LawClient` connect `get_law.go` to `context.Context`, `newTestClient`?**
+  _High betweenness centrality (0.012) - this node is a cross-community bridge._
 - **Are the 23 inferred relationships involving `NewClient()` (e.g. with `.TestCircuitBreakerOpensAfterFailures()` and `.TestGetLawHistoryEmptyResult()`) actually correct?**
   _`NewClient()` has 23 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `github.com/alvarosdev/chile-bcn-mcp`, `normType`, `template` to the rest of the system?**
+- **What connects `Context`, `Goals / Non-Goals`, `Decisions` to the rest of the system?**
   _47 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `2026-08-14-add-law-history-and-versions/specs/leychile-search/spec.md` be split into smaller, more focused modules?**
   _Cohesion score 0.11346938775510204 - nodes in this community are weakly interconnected._
