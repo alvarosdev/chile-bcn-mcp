@@ -39,15 +39,22 @@ func main() {
 	)
 
 	// Load the API resources contract once at startup — fail fast on an
-	// invalid contract. The path is FIXED: config changes are deployed by
-	// rebuilding the image (config/ is baked in), never by hot-reload.
-	const resourcesPath = "config/api.resources.yaml"
-	resources, err := config.Load(resourcesPath)
+	// invalid contract. The contract is baked into the binary via go:embed
+	// (internal/config/api.resources.yaml), never by hot-reload.
+	resources, err := config.LoadEmbedded()
 	if err != nil {
-		logger.Error("Invalid API resources contract", "path", resourcesPath, "error", err)
+		logger.Error("Invalid embedded API resources contract", "error", err)
 		os.Exit(1)
 	}
 	logger.Info("API resources loaded", "resources", len(resources.Resources))
+
+	// Load the curated prompts once at startup — baked via go:embed.
+	promptSet, err := prompts.LoadEmbedded()
+	if err != nil {
+		logger.Error("Invalid embedded prompts contract", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("Prompts loaded")
 
 	// Build the process-wide law client (the injected singleton) and
 	// register all tools with it.
@@ -56,8 +63,7 @@ func main() {
 	// Create MCP server and register tools and prompts.
 	srv := server.New(logger)
 	tools.RegisterTools(srv, lawClient)
-	prompts.RegisterPrompts(srv)
-
+	prompts.RegisterPrompts(srv, promptSet)
 	ctx, cancel := signal.NotifyContext(context.Background(),
 		syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()

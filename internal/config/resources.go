@@ -1,15 +1,21 @@
 // Package config loads the API resources contract (api.resources.yaml):
 // where and how to call each external endpoint, without hardcoded URLs
 // in the code. Loaded once at startup, validated fail-fast.
+// The contract is baked into the binary via go:embed (internal/config/api.resources.yaml);
+// no external file is required at runtime. Load(path) is kept only for tests with fixtures.
 package config
 
 import (
+	_ "embed"
 	"fmt"
 	"os"
 	"time"
 
 	"gopkg.in/yaml.v3"
 )
+
+//go:embed api.resources.yaml
+var rawResources []byte
 
 // Resources is the root of the api.resources.yaml contract.
 type Resources struct {
@@ -62,8 +68,21 @@ func (d *Duration) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
+// LoadEmbedded reads and validates the embedded api.resources.yaml contract.
+// The file is baked into the binary via go:embed; no external file is required.
+func LoadEmbedded() (*Resources, error) {
+	var res Resources
+	if err := yaml.Unmarshal(rawResources, &res); err != nil {
+		return nil, fmt.Errorf("parse embedded resources: %w", err)
+	}
+	if err := res.validate(); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
 // Load reads and validates the resources contract from path.
-// An invalid contract returns an error: the server must fail fast.
+// Kept for tests with testdata fixtures; production code should use LoadEmbedded.
 func Load(path string) (*Resources, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

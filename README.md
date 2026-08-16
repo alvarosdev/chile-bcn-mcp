@@ -136,12 +136,11 @@ make build
 make run-http        # HTTP mode
 make run-stdio       # stdio mode
 
-# Cross-platform distributions (6 targets, self-contained with config)
+```bash
 make dist
 ```
 
-The binary is fully static — it needs no Go toolchain at runtime. The API endpoints contract is baked next to the binary at `config/api.resources.yaml` (fixed path, no hot reload — configuration changes are deployed by rebuilding).
-
+The binary is fully static — it needs no Go toolchain at runtime. The API endpoints contract and curated prompts are baked into the binary via `go:embed` (`internal/config/api.resources.yaml` and `internal/prompts/prompts.yaml`, no external files — configuration changes are deployed by rebuilding).
 ---
 
 ## Environment Variables
@@ -153,8 +152,7 @@ The binary is fully static — it needs no Go toolchain at runtime. The API endp
 | `FASTMCP_PORT` | `8000` | Port to listen on (HTTP only) |
 | `FASTMCP_PATH` | `/mcp` | HTTP endpoint path (HTTP only) |
 | `MCP_AUTH_TOKEN` | *(empty)* | Bearer token required for HTTP auth; ignored in stdio |
-
-The LeyChile endpoints (URLs, timeouts, retry policy, circuit breaker) are declared in `config/api.resources.yaml`, loaded once at startup with fail-fast validation, and baked into the container image at build time.
+The LeyChile endpoints (URLs, timeouts, retry policy, circuit breaker) are declared in `internal/config/api.resources.yaml`, loaded once at startup from the embedded contract with fail-fast validation, and baked into the binary at build time.
 
 ---
 
@@ -264,11 +262,9 @@ Publishing is deliberate, not automatic:
 |------|-----------|
 | `cmd/chile-bcn-mcp/` | The MCP server binary entry point |
 | `internal/bcn/` | LeyChile domain client: resty per-endpoint, retry/circuit breaker, nested-content parsing, Markdown conversion, sanitizer, ETag cache |
-| `internal/config/` | The `api.resources.yaml` contract loader with fail-fast validation |
-| `internal/server/` | MCP server setup and configuration |
-| `internal/tools/` | The three MCP tools (presentation layer) |
-| `config/api.resources.yaml` | LeyChile endpoints contract (baked into the image) |
-| `scripts/smoke.sh` | End-to-end smoke test against the real BCN API (`make smoke`) |
+| `internal/config/` | The `api.resources.yaml` contract loader with fail-fast validation (embedded via `go:embed`) |
+| `internal/config/api.resources.yaml` | LeyChile endpoints contract (baked into the binary) |
+| `internal/prompts/prompts.yaml` | Curated MCP prompts (baked into the binary) |
 | `.github/workflows/` | CI (test + vet) and publish (multi-arch → GHCR) |
 | `Makefile` | Build helpers: `make check`, `make smoke`, `make mock`, `make podman-*`, etc. |
 | `.mockery.yml` | Mock generation config (mocks live next to the production file) |
@@ -289,8 +285,7 @@ The server serves exactly what the public LeyChile API provides — full norm co
 **How is auth handled?**
 HTTP mode uses an optional bearer token (`MCP_AUTH_TOKEN`). Stdio mode needs no auth — the container runs locally as a child of your agent.
 
-**What happens if LeyChile is down or rate-limits?**
-Each endpoint has its own timeout, retry (transient 5xx/timeouts) and circuit breaker, configured in `config/api.resources.yaml`. When the breaker opens, calls fail fast without hammering the API until it recovers.
+Each endpoint has its own timeout, retry (transient 5xx/timeouts) and circuit breaker, configured in `internal/config/api.resources.yaml` (embedded). When the breaker opens, calls fail fast without hammering the API until it recovers.
 
 ---
 
@@ -328,10 +323,7 @@ Releases happen **only by merging a `release/v*` branch into `main`** — there 
 
 For a manual run, use the workflow dispatch and enter the version.
 
-### Distributions (`dist.zip`)
-
-Self-contained builds for six targets — each folder carries its binary plus `config/api.resources.yaml` (the server loads the contract from a fixed relative path, so `cd linux/amd64 && ./chile-bcn-mcp` just works):
-
+Self-contained builds for six targets — each folder carries only its binary (the endpoints contract and prompts are embedded via `go:embed`, so `cd linux/amd64 && ./chile-bcn-mcp` just works from any folder):
 ```
 dist.zip
 ├── windows/{amd64,arm64}/chile-bcn-mcp.exe

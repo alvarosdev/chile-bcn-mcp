@@ -4,9 +4,12 @@ package server
 import (
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/alvarosdev/chile-bcn-mcp/internal/version"
 )
 
 // Config holds all runtime configuration read from environment variables.
@@ -54,7 +57,7 @@ func New(logger *slog.Logger) *mcp.Server {
 		&mcp.Implementation{
 			Name:    "chile-bcn-mcp-server",
 			Title:   "Chile BCN MCP Server",
-			Version: "0.1.0",
+			Version: strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(version.Version), "v")),
 		},
 		opts,
 	)

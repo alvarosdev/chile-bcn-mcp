@@ -1,6 +1,8 @@
 BINARY := bin/chile-bcn-mcp
 IMAGE := chile-bcn-mcp:local
 CONTAINER := chile-bcn-mcp
+VERSION ?= $(shell cat VERSION 2>/dev/null | tr -d ' \n' | sed 's/^v//')
+LDFLAGS := -s -w -X github.com/alvarosdev/chile-bcn-mcp/internal/version.Version=$(VERSION)
 # Temporary Bearer token for local testing (make run-http-auth).
 DEV_AUTH_TOKEN ?= devtoken
 # podman is the main container runtime; docker compose is the fallback.
@@ -16,17 +18,16 @@ help: ## Show this help (default target)
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 build: ## Build the server binary into bin/
-	CGO_ENABLED=0 go build -ldflags="-s -w" -o $(BINARY) ./cmd/chile-bcn-mcp
+	CGO_ENABLED=0 go build -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY) ./cmd/chile-bcn-mcp
 
 run-http: ## Run the server (HTTP, default config, no auth)
-	go run ./cmd/chile-bcn-mcp
+	go run -ldflags="$(LDFLAGS)" ./cmd/chile-bcn-mcp
 
 run-http-auth: ## Run the server (HTTP) with a temporary Bearer token for testing (default: devtoken, override: make run-http-auth DEV_AUTH_TOKEN=x)
-	MCP_AUTH_TOKEN=$(DEV_AUTH_TOKEN) go run ./cmd/chile-bcn-mcp
+	MCP_AUTH_TOKEN=$(DEV_AUTH_TOKEN) go run -ldflags="$(LDFLAGS)" ./cmd/chile-bcn-mcp
 
 run-stdio: ## Run the server over stdio
-	FASTMCP_TRANSPORT=stdio go run ./cmd/chile-bcn-mcp
-
+	FASTMCP_TRANSPORT=stdio go run -ldflags="$(LDFLAGS)" ./cmd/chile-bcn-mcp
 test: ## Run all tests (no cache)
 	go test ./... -count=1
 

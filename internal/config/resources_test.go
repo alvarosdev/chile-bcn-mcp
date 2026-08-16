@@ -75,3 +75,14 @@ func (s *ResourcesSuite) TestLoadUnsupportedVersion() {
 	s.Error(err)
 	s.Contains(err.Error(), "unsupported version")
 }
+
+func (s *ResourcesSuite) TestLoadEmbedded() {
+	res, err := LoadEmbedded()
+	s.Require().NoError(err)
+	s.Equal(1, res.Version)
+	s.Len(res.Resources, 3)
+	for _, name := range []string{"search_laws", "get_law", "get_law_history"} {
+		_, ok := res.Resources[name]
+		s.True(ok, "embedded resources missing %s", name)
+	}
+}
