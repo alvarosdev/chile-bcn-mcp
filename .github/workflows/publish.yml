@@ -99,11 +99,12 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.version.outputs.version }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          build-args: |
+            VERSION=${{ needs.version.outputs.version }}
           # cache-from only: reads never fail the build, but cache-to writes
           # can (known "failed to reserve cache" on the GHA cache backend
           # with multi-platform builds — it failed AFTER the image push).
           cache-from: type=gha
-
   release:
     # Only with a fully green pipeline: any failure in dist or docker
     # blocks the draft release (no release on broken builds).

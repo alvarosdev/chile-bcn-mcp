@@ -1,0 +1,88 @@
+# SKETCH — no es el archivo productivo (ese vivirá en internal/prompts/prompts.yaml)
+# Llaves = mcp.Prompt.Name (snake_case). Bloques literales `|` preservan \n y ".
+# Placeholders: {{.norm_id}}, {{.topic}}, {{.from_date}}, {{.to_date}}, {{.date}},
+#               {{.aspect}}, {{.audience}}, {{.question}}, {{.article_hint}}, {{.version_date}}
+#               + {{.tool_search_laws}}, {{.tool_get_law}}, {{.tool_get_law_summary}}, {{.tool_get_law_history}}
+# Render: text/template con Option("missingkey=error"), whitelist cerrada, 9 prompts exactos.
+# CPR 242302 hardcodeado literal (Decreto 100) en los dos últimos prompts.
+prompts:
+  analyze_law: |
+    Analyze Chilean norm {{.norm_id}}.
+
+    Step 1: call {{.tool_get_law_summary}}(norm_id={{.norm_id}}) to understand the scope and official summary.
+    Step 2: call {{.tool_get_law}}(norm_id={{.norm_id}}, structure_only=true) to read the table of contents.
+    Step 3: call {{.tool_get_law}}(norm_id={{.norm_id}}) to read the full text.
+
+    Structure the analysis: purpose, scope, obligations, sanctions, entry into force.{{if .aspect}} Focus the analysis on: {{.aspect}}.{{end}}
+
+    For every claim, cite the article number. NEVER invent articles or content — verify everything against the actual returned text.
+
+  search_legal_topic: |
+    Find Chilean norms about {{.topic}}.
+
+    Step 1: call {{.tool_search_laws}}(query="{{.topic}}"). If results are noisy, refine the query with the norm type (e.g. "Ley {{.topic}}", "Decreto {{.topic}}").
+    Step 2: read the summaries in the results — do NOT open a norm before reading its summary.
+    Step 3: pick the most relevant result and confirm with {{.tool_get_law_summary}}(norm_id=...).
+    Step 4: verify with {{.tool_get_law}}(norm_id=...) before stating anything as fact. NEVER invent norm numbers or content.
+
+  compare_law_versions: |
+    Compare norm {{.norm_id}} between {{.from_date}} and {{.to_date}}.
+
+    Call {{.tool_get_law}}(norm_id={{.norm_id}}, version_date={{.from_date}}) and {{.tool_get_law}}(norm_id={{.norm_id}}, version_date={{.to_date}}).
+
+    Report what changed: which articles were modified, added or removed, and when each change took effect. Verify both versions against the actual returned text — the "Version: as of" line tells you which version you are reading.
+
+  trace_law_history: |
+    Trace the legislative history of norm {{.norm_id}}.
+
+    Call {{.tool_get_law_history}}(norm_id={{.norm_id}}). Identify the "modificatorias" group (laws that modified this norm). For each: date, law number, summary.
+
+    To READ any of these norms, call {{.tool_get_law}} with the id_norma_hl value (the LeyChile id of the record's norm) — never the id_norma field nor the number in the history URL. Present a chronological timeline.
+
+  check_law_validity: |
+    Check whether norm {{.norm_id}} is in force{{if .date}} as of {{.date}}{{end}}.
+
+    Call {{.tool_get_law_summary}}(norm_id={{.norm_id}}{{if .date}}, version_date={{.date}}{{end}}). Report: in force / derogated / in force at the given date, based on the derogated flag and the validity window. Distinguish "vigente", "derogada" and "vigente a la fecha". Verify against the actual returned metadata.
+
+  explain_law_simply: |
+    Explain norm {{.norm_id}} in plain language.{{if .audience}} Audience: {{.audience}}.{{end}}
+
+    Call {{.tool_get_law_summary}}(norm_id={{.norm_id}}), then {{.tool_get_law}}(norm_id={{.norm_id}}) to read the actual text. Explain without legal jargon.
+
+    For every claim, cite the source article. End with: this explanation is not legal advice; consult the official text at bcn.cl.
+
+  law_research_workflow: |
+    Research Chilean norm {{.norm_id}} efficiently.{{if .question}} Focus on answering: {{.question}}.{{end}}
+
+    Step 1: call {{.tool_get_law_summary}}(norm_id={{.norm_id}}) — it returns the summary, the size and the table of contents with the section ids.
+    Step 2: read the structure and call {{.tool_get_law}}(norm_id={{.norm_id}}, section_id=<section id>) ONLY for the sections relevant to the question. NEVER call {{.tool_get_law}} without section_id unless the Size line shows a short norm.
+
+    For every claim, cite the article number. NEVER invent articles or content — verify everything against the actual returned text.
+
+  answer_constitutional_question: |
+    Answer the constitutional question "{{.question}}" about the Chilean Constitution (Decreto 100, norm_id=242302).{{if .article_hint}} Article hint: {{.article_hint}} (fuzzy match against Estructura[].n, e.g. "19" → Artículo 19, "transitoria primera" → Disposición Transitoria PRIMERA).{{end}}{{if .version_date}} Version date: {{.version_date}} — the "Version: as of" line confirms which version you read.{{end}}
+
+    Step 1: call {{.tool_get_law_summary}}(norm_id=242302{{if .version_date}}, version_date={{.version_date}}{{end}}) — it returns the Size and the table of contents with section_ids (Chapters I-XV and DISPOSICIONES TRANSITORIAS). Read the Structure to map the question to 1-3 relevant section_ids. If article_hint is provided ("{{.article_hint}}"), prioritize the entry matching that hint (fuzzy match against Estructura[].n); otherwise map question keywords to chapter/article names (e.g. "propiedad" → Capítulo III, "plebiscito 2022" → DISPOSICIONES TRANSITORIAS → VIGÉSIMAQUINTA).
+
+    Step 2: call {{.tool_get_law}}(norm_id=242302, section_id=<section id>{{if .version_date}}, version_date={{.version_date}}{{end}}) ONLY for the sections identified. NEVER call {{.tool_get_law}} without section_id — the Constitution is ~410K chars; the Size line tells you whether a section is short. When a transitory provision modifies a permanent article (e.g. transitoria mentioning Art. 142), cite both. Also consider DISPOSICIONES TRANSITORIAS as eligible sections when the question mentions reforma/plebiscito/vigencia/transitoria.
+
+    For every claim, cite the source article (e.g. Art. 19 Nº24). NEVER invent articles or content — verify everything against the actual returned text{{if .version_date}} (version_date={{.version_date}}){{end}}.
+
+    Interpret the text conditionally: use "conforme al texto retornado ... podría interpretarse como (in)compatible/constitucional/inconstitucional, en la medida que ..." This is general information, not legal advice; the binding qualification corresponds to the Tribunal Constitucional. Verify in the official text at bcn.cl and consult a qualified professional.
+
+  check_norm_constitutionality: |
+    Assess whether Chilean norm {{.norm_id}} is compatible with the Chilean Constitution (Decreto 100, norm_id=242302).{{if .question}} Question: {{.question}}.{{end}}{{if .question}} Focus: {{.question}}.{{end}}{{if .version_date}} Version date: {{.version_date}} (applied to both norms for temporal coherence) — the "Version: as of" line confirms the version.{{end}}
+
+    Step 1: call {{.tool_get_law_summary}}(norm_id={{.norm_id}}{{if .version_date}}, version_date={{.version_date}}{{end}}) for the target norm and {{.tool_get_law_summary}}(norm_id=242302{{if .version_date}}, version_date={{.version_date}}{{end}}) for the Constitution — both with version_date if provided, to keep temporal coherence. Each summary gives the Size and TOC with section_ids (including DISPOSICIONES TRANSITORIAS).
+
+    Step 2: from both TOCs select the 1-3 most relevant sections (using question "{{.question}}" if provided or the summaries). Include DISPOSICIONES TRANSITORIAS when the question mentions reforma/plebiscito/vigencia/transitoria.
+
+    Step 3: call {{.tool_get_law}}(norm_id={{.norm_id}}, section_id=<section id>{{if .version_date}}, version_date={{.version_date}}{{end}}) and {{.tool_get_law}}(norm_id=242302, section_id=<section id>{{if .version_date}}, version_date={{.version_date}}{{end}}) for each selected section. NEVER call {{.tool_get_law}} without section_id unless the Size line shows a short norm.
+
+    Step 4: present a side-by-side textual parallelism "Art. X of norm {{.norm_id}} says ... | Art. Z CPR says ..." citing articles of both norms, and analyze compatibility conditionally ("conforme al texto retornado de Art. X and Art. Z CPR, podría interpretarse como constitucional/inconstitucional, en la medida que ...").
+
+    For every claim, cite the article. NEVER invent articles or content — verify against the returned text. The "Version: as of" line confirms the version.
+
+    Recommended: call {{.tool_get_law_history}}(norm_id={{.norm_id}}) if the target norm may have had TC review — if the modificatorias group exists, summarize it.
+
+    This analysis is general information, not legal advice; the binding qualification corresponds to the Tribunal Constitucional. Verify at bcn.cl and consult a qualified professional.

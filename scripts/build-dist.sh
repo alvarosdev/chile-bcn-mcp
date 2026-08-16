@@ -4,9 +4,8 @@
 # Usage: scripts/build-dist.sh <version>   (e.g. 1.2.0)
 #
 # Compiles the 6-target matrix (linux/darwin/windows × amd64/arm64),
-# bundles config/api.resources.yaml inside EACH os/arch folder (the server
-# loads the contract from a fixed relative path, so every distribution is
-# self-contained after extraction), generates SHA256SUMS.txt and packs
+# each binary is self-contained via go:embed (endpoints and prompts baked
+# into the binary, no external config), generates SHA256SUMS.txt and packs
 # everything into dist.zip.
 #
 # This is the SAME script the CI workflow runs: local = CI.
@@ -45,13 +44,9 @@ for t in "${TARGETS[@]}"; do
 
   echo "  → $os/$arch"
   CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
-    go build -trimpath -ldflags="-s -w" \
+    go build -trimpath -ldflags="-s -w -X github.com/alvarosdev/chile-bcn-mcp/internal/version.Version=${VERSION#v}" \
     -o "$out" ./cmd/chile-bcn-mcp
 
-  # Self-contained distribution: the endpoints contract rides along
-  # (fixed relative path config/api.resources.yaml).
-  mkdir -p "$DIST/$os/$arch/config"
-  cp config/api.resources.yaml "$DIST/$os/$arch/config/"
 done
 
 echo "Generating SHA256SUMS.txt..."

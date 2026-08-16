@@ -31,8 +31,8 @@ context: |
     handlers MCP, matchear el ctx con mock.Anything (el go-sdk pasa un contexto derivado; un
     mismatch hace Goexit en la goroutine del handler y cuelga CallTool). Args de tools con
     defaults llevan omitempty en el tag json (sin omitempty el schema generado los marca required).
-  - Configuración: endpoints declarados en config/api.resources.yaml con ruta FIJA (sin override
-    por env, sin hot-reload — los cambios se despliegan rebuildando la imagen, que embebe config/).
+  - Configuración: endpoints declarados en internal/config/api.resources.yaml y prompts en internal/prompts/prompts.yaml, ambos bakeados en el binario via go:embed (sin override
+    por env, sin hot-reload, sin archivos externos — los cambios se despliegan rebuildando el binario/imagen, que embebe ambos).
     Settings del server por variables de entorno FASTMCP_*/MCP_AUTH_TOKEN cargadas una vez al
     arranque. Instancia única inyectada por constructor (nunca estado global).
   - Sanitización: todo texto que llega al LLM pasa por internal/bcn/sanitize.go (pasada única);

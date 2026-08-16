@@ -67,3 +67,19 @@ El servidor DEBE terminar limpiamente al recibir las señales `SIGINT` o `SIGTER
 #### Scenario: Terminación en modo stdio
 - **WHEN** el proceso recibe `SIGINT` o `SIGTERM` en modo stdio
 - **THEN** el servidor cierra la sesión y finaliza sin errores
+
+### Requirement: Versión reportada del servidor MCP
+
+El servidor SHALL reportar su versión real en `mcp.Implementation.Version` durante el handshake `initialize`, tomada de `internal/version.Version` (inyectada por build desde `VERSION`). El valor reportado SHALL ser la versión sin prefijo `v`; cuando el binario fue compilado sin `ldflags` SHALL reportar `"dev"`.
+
+#### Scenario: Handshake reporta versión de release
+- **WHEN** un cliente MCP envía `initialize` a un binario compilado con `VERSION=0.0.6`
+- **THEN** la respuesta contiene `serverInfo.version == "0.0.6"`
+
+#### Scenario: Binario dev reporta dev
+- **WHEN** un cliente MCP envía `initialize` a un binario compilado con `go run` sin `ldflags`
+- **THEN** la respuesta contiene `serverInfo.version == "dev"`
+
+#### Scenario: Consistencia entre transportes
+- **WHEN** el mismo binario se inicia en `stdio` y en `http`
+- **THEN** ambos transportes reportan idéntico `serverInfo.version` para la misma compilación

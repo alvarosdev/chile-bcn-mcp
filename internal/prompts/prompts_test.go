@@ -24,8 +24,11 @@ func TestPromptsSuite(t *testing.T) {
 func (s *PromptsSuite) SetupTest() {
 	s.ctx = context.Background()
 
+	ps, err := LoadEmbedded()
+	s.Require().NoError(err)
+
 	server := mcp.NewServer(&mcp.Implementation{Name: "test-server"}, nil)
-	RegisterPrompts(server)
+	RegisterPrompts(server, ps)
 
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(s.ctx, serverTransport, nil)
@@ -227,4 +230,49 @@ func (s *PromptsSuite) TestConstitutionalPromptsMentionHedgeAndDisclaimer() {
 	s.Contains(c, "podría interpretarse como")
 	s.Contains(c, "not legal advice")
 	s.Contains(c, "Art. X")
+}
+
+func (s *PromptsSuite) TestLoadEmbeddedParsesNinePrompts() {
+	ps, err := LoadEmbedded()
+	s.Require().NoError(err)
+	s.Len(ps.templates, 9)
+	for _, name := range expectedPromptNames {
+		_, ok := ps.templates[name]
+		s.True(ok, "embedded prompt %q missing", name)
+	}
+}
+
+func (s *PromptsSuite) TestLoadEmbeddedRejectsUnknownPlaceholder() {
+	// Build a YAML with 9 valid prompts but one contains an unknown placeholder.
+	yamlWithBad := "prompts:\n"
+	for _, name := range expectedPromptNames {
+		content := "valid content"
+		if name == "analyze_law" {
+			content = "bad {{.unknown_placeholder}}"
+		}
+		yamlWithBad += "  " + name + ": |\n    " + content + "\n"
+	}
+	_, err := loadFromBytes([]byte(yamlWithBad))
+	s.Error(err)
+	s.Contains(err.Error(), "unknown placeholder")
+	s.Contains(err.Error(), "unknown_placeholder")
+}
+
+func (s *PromptsSuite) TestLoadEmbeddedRejectsWrongCount() {
+	// Only one prompt — should fail count validation.
+	yamlOne := "prompts:\n  analyze_law: |\n    hello\n"
+	_, err := loadFromBytes([]byte(yamlOne))
+	s.Error(err)
+	s.Contains(err.Error(), "want 9 prompts")
+}
+
+func (s *PromptsSuite) TestRenderWithMissingArgsStillServes() {
+	// Directly test PromptSet render with missing optional args — should not error and not leak placeholder syntax.
+	ps, err := LoadEmbedded()
+	s.Require().NoError(err)
+	text, err := ps.render("check_law_validity", map[string]string{"norm_id": "42"})
+	s.Require().NoError(err)
+	s.Contains(text, "42")
+	s.NotContains(text, "{{")
+	s.NotContains(text, "unknown")
 }
