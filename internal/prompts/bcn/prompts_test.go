@@ -1,4 +1,4 @@
-package prompts
+package bcn
 
 import (
 	"context"
@@ -60,6 +60,7 @@ func (s *PromptsSuite) TestListPrompts() {
 		"analyze_law", "search_legal_topic", "compare_law_versions",
 		"trace_law_history", "check_law_validity", "explain_law_simply",
 		"law_research_workflow", "answer_constitutional_question", "check_norm_constitutionality",
+		"interpret_law",
 	}
 	for _, name := range expected {
 		p, ok := names[name]
@@ -232,12 +233,12 @@ func (s *PromptsSuite) TestConstitutionalPromptsMentionHedgeAndDisclaimer() {
 	s.Contains(c, "Art. X")
 }
 
-func (s *PromptsSuite) TestLoadEmbeddedParsesNinePrompts() {
+func (s *PromptsSuite) TestLoadEmbeddedParsesTenPrompts() {
 	ps, err := LoadEmbedded()
 	s.Require().NoError(err)
-	s.Len(ps.templates, 9)
+	s.Len(ps.Templates, 10)
 	for _, name := range expectedPromptNames {
-		_, ok := ps.templates[name]
+		_, ok := ps.Templates[name]
 		s.True(ok, "embedded prompt %q missing", name)
 	}
 }
@@ -263,14 +264,14 @@ func (s *PromptsSuite) TestLoadEmbeddedRejectsWrongCount() {
 	yamlOne := "prompts:\n  analyze_law: |\n    hello\n"
 	_, err := loadFromBytes([]byte(yamlOne))
 	s.Error(err)
-	s.Contains(err.Error(), "want 9 prompts")
+	s.Contains(err.Error(), "want 10 prompts")
 }
 
 func (s *PromptsSuite) TestRenderWithMissingArgsStillServes() {
 	// Directly test PromptSet render with missing optional args — should not error and not leak placeholder syntax.
 	ps, err := LoadEmbedded()
 	s.Require().NoError(err)
-	text, err := ps.render("check_law_validity", map[string]string{"norm_id": "42"})
+	text, err := ps.Render("check_law_validity", map[string]string{"norm_id": "42"}, allowedPlaceholders, toolVars())
 	s.Require().NoError(err)
 	s.Contains(text, "42")
 	s.NotContains(text, "{{")

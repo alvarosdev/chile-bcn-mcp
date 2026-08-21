@@ -20,8 +20,10 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/alvarosdev/chile-bcn-mcp/internal/bcn"
+	"github.com/alvarosdev/chile-bcn-mcp/internal/cgr"
 	"github.com/alvarosdev/chile-bcn-mcp/internal/config"
-	"github.com/alvarosdev/chile-bcn-mcp/internal/prompts"
+	bcnPrompts "github.com/alvarosdev/chile-bcn-mcp/internal/prompts/bcn"
+	cgrPrompts "github.com/alvarosdev/chile-bcn-mcp/internal/prompts/cgr"
 	"github.com/alvarosdev/chile-bcn-mcp/internal/server"
 	"github.com/alvarosdev/chile-bcn-mcp/internal/tools"
 )
@@ -48,22 +50,30 @@ func main() {
 	}
 	logger.Info("API resources loaded", "resources", len(resources.Resources))
 
-	// Load the curated prompts once at startup — baked via go:embed.
-	promptSet, err := prompts.LoadEmbedded()
+	// Load the curated prompts once at startup — baked via go:embed per domain.
+	bcnPS, err := bcnPrompts.LoadEmbedded()
 	if err != nil {
-		logger.Error("Invalid embedded prompts contract", "error", err)
+		logger.Error("Invalid embedded BCN prompts contract", "error", err)
 		os.Exit(1)
 	}
-	logger.Info("Prompts loaded")
+	cgrPS, err := cgrPrompts.LoadEmbedded()
+	if err != nil {
+		logger.Error("Invalid embedded CGR prompts contract", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("Prompts loaded", "bcn", len(bcnPrompts.ToolNames()), "cgr", len(cgrPrompts.ToolNames()))
 
 	// Build the process-wide law client (the injected singleton) and
 	// register all tools with it.
 	lawClient := bcn.NewClient(resources, logger)
+	cgrClient := cgr.NewClient(resources, logger)
 
 	// Create MCP server and register tools and prompts.
 	srv := server.New(logger)
 	tools.RegisterTools(srv, lawClient)
-	prompts.RegisterPrompts(srv, promptSet)
+	tools.RegisterCgrTools(srv, cgrClient)
+	bcnPrompts.RegisterPrompts(srv, bcnPS)
+	cgrPrompts.RegisterPrompts(srv, cgrPS)
 	ctx, cancel := signal.NotifyContext(context.Background(),
 		syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()

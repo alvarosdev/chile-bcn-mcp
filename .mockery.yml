@@ -11,3 +11,10 @@ packages:
           dir: "{{.InterfaceDir}}"
           filename: "{{.InterfaceName | snakecase}}_mock.go"
           structname: "Mock{{.InterfaceName}}"
+  github.com/alvarosdev/chile-bcn-mcp/internal/cgr:
+    interfaces:
+      CgrClient:
+        config:
+          dir: "{{.InterfaceDir}}"
+          filename: "{{.InterfaceName | snakecase}}_mock.go"
+          structname: "Mock{{.InterfaceName}}"

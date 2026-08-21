@@ -5,15 +5,23 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/alvarosdev/chile-bcn-mcp/internal/bcn"
+	"github.com/alvarosdev/chile-bcn-mcp/internal/cgr"
 )
 
-// RegisterTools registers all tools on the MCP server. The law client is
+// RegisterTools registers all BCN tools on the MCP server. The law client is
 // injected: the same process-wide instance is reused for every request.
 func RegisterTools(srv *mcp.Server, client bcn.LawClient) {
 	RegisterSearchLaws(srv, client)
 	RegisterGetLaw(srv, client)
 	RegisterGetLawSummary(srv, client)
 	RegisterGetLawHistory(srv, client)
+}
+
+// RegisterCgrTools registers all CGR tools on the MCP server.
+func RegisterCgrTools(srv *mcp.Server, client cgr.CgrClient) {
+	RegisterSearchCgrDictamenes(srv, client)
+	RegisterGetCgrDictamen(srv, client)
+	RegisterCountCgrJurisprudencia(srv, client)
 }
 
 // errorResult renders a tool error as an MCP error result. The handler

@@ -45,3 +45,29 @@ resources:
       success_threshold: 2
       reset_timeout: 30s
 
+  cgr_search:
+    url: https://www.contraloria.cl
+    path: /apibusca/search/dictamenes
+    method: POST
+    timeout: 10s
+    retry:
+      attempts: 3
+      backoff: 500ms
+      max_backoff: 5s
+    circuit_breaker:
+      failure_threshold: 5
+      success_threshold: 2
+      reset_timeout: 30s
+  cgr_count:
+    url: https://www.contraloria.cl
+    path: /apibusca/count/dictamenes
+    method: POST
+    timeout: 10s
+    retry:
+      attempts: 2
+      backoff: 500ms
+      max_backoff: 4s
+    circuit_breaker:
+      failure_threshold: 5
+      success_threshold: 2
+      reset_timeout: 30s

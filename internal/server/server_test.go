@@ -49,11 +49,11 @@ func TestLoadConfigOverrides(t *testing.T) {
 	unsetEnv(t, "MCP_TRANSPORT", "MCP_HOST", "MCP_PORT",
 		"MCP_PATH", "MCP_AUTH_TOKEN")
 	env := map[string]string{
-		"MCP_TRANSPORT": "stdio",
-		"MCP_HOST":      "0.0.0.0",
-		"MCP_PORT":      "9000",
-		"MCP_PATH":      "/mcp-custom",
-		"MCP_AUTH_TOKEN":    "secret",
+		"MCP_TRANSPORT":  "stdio",
+		"MCP_HOST":       "0.0.0.0",
+		"MCP_PORT":       "9000",
+		"MCP_PATH":       "/mcp-custom",
+		"MCP_AUTH_TOKEN": "secret",
 	}
 	for k, v := range env {
 		if err := os.Setenv(k, v); err != nil {
