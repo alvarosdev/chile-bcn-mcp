@@ -127,7 +127,7 @@ The compose file exposes the env vars listed in [Environment Variables](#environ
 
 ### Native (no container)
 
-For development or when you want a single static binary with no container runtime. Every binary is fully static (`CGO_ENABLED=0`) and self-contained — the LeyChile endpoints contract (`internal/config/api.resources.yaml`) and curated prompts (`internal/prompts/prompts.yaml`) are baked in via `go:embed`. No external files, no Go toolchain at runtime; `cd` into any extracted folder and run the binary directly.
+For development or when you want a single static binary with no container runtime. Every binary is fully static (`CGO_ENABLED=0`) and self-contained — the LeyChile endpoints contract (`internal/config/api.resources.yaml`) and curated prompts (`internal/prompts/bcn/prompts.yaml` + `internal/prompts/cgr/prompts.yaml`) are baked in via `go:embed`. No external files, no Go toolchain at runtime; `cd` into any extracted folder and run the binary directly.
 
 #### Option A — download prebuilt binaries (recommended)
 
@@ -430,24 +430,35 @@ Busca la Ley 21.600
 
 ## Prompts
 
-The server also exposes nine **curated prompts** — server-side templates that guide the model through the correct workflow for each task. They encode the domain rules (read summaries before opening norms, verify against the actual text, never invent articles) so clients don't need a custom system prompt.
+The server also exposes fourteen **curated prompts** — ten for the LeyChile (BCN) domain and four for the Contraloría (CGR) domain — server-side templates that guide the model through the correct workflow for each task. They encode the domain rules (read summaries before opening norms, verify against the actual text, never invent articles/dictámenes) so clients don't need a custom system prompt.
+
+### BCN (LeyChile) — 10 prompts
 
 | Prompt | Arguments | When to use |
 |--------|-----------|-------------|
-| **`analyze_law`** | `norm_id`*, `aspect` | Structured legal analysis of a norm (purpose, scope, obligations, sanctions) with citations |
-| **`search_legal_topic`** | `topic`* | Guided search: pick a query, read summaries first, verify with the full text |
-| **`compare_law_versions`** | `norm_id`*, `from_date`*, `to_date`* | Compare a norm between two dates using historical `version_date` |
-| **`trace_law_history`** | `norm_id`* | Trace which laws modified a norm, with the correct LeyChile ids |
-| **`check_law_validity`** | `norm_id`*, `date` | In force / derogated / in force at a given date |
-| **`explain_law_simply`** | `norm_id`*, `audience` | Plain-language explanation with citations and a no-legal-advice disclaimer |
-| **`law_research_workflow`** | `norm_id`*, `question` | Efficient section-by-section reading via `get_law_summary` → `section_id` |
-| **`answer_constitutional_question`** | `question`*, `article_hint`, `version_date` | Q&A about the Chilean Constitution (Decreto 100, 242302) via TOC + `section_id`, with hedge + disclaimer |
-| **`check_norm_constitutionality`** | `norm_id`*, `question`, `version_date` | Contrast a norm vs the Constitution side-by-side, citing both, with version support |
+| **`analyze_law`** | `norm_id`*, `aspect`, `lang` | Structured legal analysis of a norm (purpose, scope, obligations, sanctions) with citations |
+| **`search_legal_topic`** | `topic`*, `lang` | Guided search: pick a query, read summaries first, verify with the full text |
+| **`compare_law_versions`** | `norm_id`*, `from_date`*, `to_date`*, `lang` | Compare a norm between two dates using historical `version_date` |
+| **`trace_law_history`** | `norm_id`*, `lang` | Trace which laws modified a norm, with the correct LeyChile ids |
+| **`check_law_validity`** | `norm_id`*, `date`, `lang` | In force / derogated / in force at a given date |
+| **`explain_law_simply`** | `norm_id`*, `audience`, `lang` | Plain-language explanation with citations and a no-legal-advice disclaimer |
+| **`law_research_workflow`** | `norm_id`*, `question`, `lang` | Efficient section-by-section reading via `get_law_summary` → `section_id` |
+| **`answer_constitutional_question`** | `question`*, `article_hint`, `version_date`, `lang` | Q&A about the Chilean Constitution (Decreto 100, 242302) via TOC + `section_id`, with hedge + disclaimer |
+| **`check_norm_constitutionality`** | `norm_id`*, `question`, `version_date`, `lang` | Contrast a norm vs the Constitution side-by-side, citing both, with version support |
+| **`interpret_law`** | `norm_id`*, `lang` | Interpretation of a norm with the 4-step method (rule/policy/principles/precedent), hierarchy and anti-bias |
 
-(* = required)
+### CGR (Contraloría) — 4 prompts
 
-Prompts complement the [Recommended System Prompt](#recommended-system-prompt): that one covers the general stance; the prompts encode the step-by-step workflow per task. Serving a prompt is a pure template operation — it never calls the BCN API.
+| Prompt | Arguments | When to use |
+|--------|-----------|-------------|
+| **`search_jurisprudence`** | `query`*, `order`, `exact_search`, `lang` | Find Contraloría jurisprudence: explore counts, search paginated, then read the full document with citation |
+| **`analyze_dictamen`** | `dictamen_id`*, `lang` | Analyze a dictamen: materia, descriptores, criterio, fuentes legales and document, with citation and hedge |
+| **`explain_dictamen_simply`** | `dictamen_id`*, `audience`, `lang` | Plain-language explanation of a dictamen with citation and no-legal-advice disclaimer |
+| **`interpret_dictamen`** | `dictamen_id`*, `lang` | Interpretation of a dictamen with the 4-step method, hierarchy (Constitución > ley/reglamento > dictamen) and anti-bias |
 
+(* = required; `lang` is optional everywhere — default Spanish if omitted)
+
+Prompts complement the [Recommended System Prompt](#recommended-system-prompt): that one covers the general stance; the prompts encode the step-by-step workflow per task. Serving a prompt is a pure template operation — it never calls the BCN or CGR APIs.
 ---
 
 ## Image Tags & Updates
@@ -478,7 +489,9 @@ Publishing is deliberate, not automatic:
 | `internal/cgr/` | Contraloría domain client: resty per-endpoint, retry/circuit breaker, sanitizer (clean-directo), LRU 100 + singleflight |
 | `internal/config/` | The `api.resources.yaml` contract loader with fail-fast validation (embedded via `go:embed`) |
 | `internal/config/api.resources.yaml` | LeyChile + Contraloría endpoints contract (baked into the binary) |
-| `internal/prompts/prompts.yaml` | Curated MCP prompts (baked into the binary) |
+| `internal/prompts/bcn/prompts.yaml` | BCN curated prompts — 10 templates (baked into the binary) |
+| `internal/prompts/cgr/prompts.yaml` | CGR curated prompts — 4 templates (baked into the binary) |
+| `internal/prompts/internal/render.go` | Shared prompt rendering (ParseAndValidate, placeholderRe, Load, Render) |
 | `.github/workflows/` | CI (test + vet) and publish (multi-arch → GHCR) |
 | `Makefile` | Build helpers: `make check`, `make smoke`, `make mock`, `make podman-*`, etc. |
 | `.mockery.yml` | Mock generation config (mocks live next to the production file) |
