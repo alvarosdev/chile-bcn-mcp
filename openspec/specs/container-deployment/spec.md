@@ -33,14 +33,14 @@ El proceso del servidor dentro del contenedor DEBE ejecutarse con un usuario sin
 
 ### Requirement: Configuración por entorno en el contenedor
 
-El contenedor DEBE respetar las mismas variables de entorno que el binario nativo (`FASTMCP_TRANSPORT`, `FASTMCP_HOST`, `FASTMCP_PORT`, `FASTMCP_PATH`, `MCP_AUTH_TOKEN`). En el contenedor, el host de escucha por defecto DEBE ser `0.0.0.0` para permitir el acceso desde fuera del contenedor, y el puerto expuesto DEBE ser `8000`.
+El contenedor DEBE respetar las mismas variables de entorno que el binario nativo (`MCP_TRANSPORT`, `MCP_HOST`, `MCP_PORT`, `MCP_PATH`, `MCP_AUTH_TOKEN`). En el contenedor, el host de escucha por defecto DEBE ser `0.0.0.0` para permitir el acceso desde fuera del contenedor, y el puerto expuesto DEBE ser `8000`.
 
 #### Scenario: Defaults de contenedor
 - **WHEN** el contenedor se inicia sin variables de entorno
 - **THEN** el servidor escucha en `0.0.0.0:8000` y responde en `/mcp`
 
 #### Scenario: Override de entorno
-- **WHEN** el contenedor se inicia con `FASTMCP_PORT=9000` y `MCP_AUTH_TOKEN=secret`
+- **WHEN** el contenedor se inicia con `MCP_PORT=9000` y `MCP_AUTH_TOKEN=secret`
 - **THEN** el servidor escucha en el puerto 9000 y exige el token en las requests HTTP
 
 ### Requirement: Healthcheck del contenedor

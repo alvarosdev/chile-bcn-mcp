@@ -25,10 +25,10 @@ type Config struct {
 // Call once at startup — never in hot paths.
 func LoadConfig() Config {
 	cfg := Config{
-		Transport: envOrDefault("FASTMCP_TRANSPORT", "http"),
-		Host:      envOrDefault("FASTMCP_HOST", "127.0.0.1"),
-		Port:      envOrDefault("FASTMCP_PORT", "8000"),
-		Path:      os.Getenv("FASTMCP_PATH"),
+		Transport: envOrDefault("MCP_TRANSPORT", "http"),
+		Host:      envOrDefault("MCP_HOST", "127.0.0.1"),
+		Port:      envOrDefault("MCP_PORT", "8000"),
+		Path:      os.Getenv("MCP_PATH"),
 		AuthToken: os.Getenv("MCP_AUTH_TOKEN"),
 	}
 	return cfg

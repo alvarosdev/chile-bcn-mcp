@@ -5,14 +5,13 @@ services:
       dockerfile: Dockerfile
     container_name: chile-bcn-mcp-server
     ports:
-      - "${FASTMCP_PORT:-8000}:8000"
+      - "${MCP_PORT:-8000}:8000"
     environment:
-      - FASTMCP_TRANSPORT=${FASTMCP_TRANSPORT:-http}
-      - FASTMCP_HOST=0.0.0.0
-      - FASTMCP_PORT=8000
-      - FASTMCP_PATH=${FASTMCP_PATH:-/mcp}
+      - MCP_TRANSPORT=${MCP_TRANSPORT:-http}
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8000
+      - MCP_PATH=${MCP_PATH:-/mcp}
       - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN:-}
-    restart: unless-stopped
     # Hardening: the server never writes to disk (config is baked in, the
     # ETag cache lives in memory), so the rootfs is read-only with a tmpfs
     # only for /tmp, all capabilities dropped, no privilege escalation.

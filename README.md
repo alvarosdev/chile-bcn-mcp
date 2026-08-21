@@ -22,6 +22,8 @@ A Model Context Protocol (MCP) server that gives AI assistants direct access to 
   - [Container, agent-launched (stdio)](#container-agent-launched-stdio)
   - [Container, self-hosted (HTTP)](#container-self-hosted-http)
   - [Native (no container)](#native-no-container)
+    - [Running the binary (stdio vs HTTP)](#running-the-binary-stdio-vs-http)
+    - [Agent examples: Claude Code, Codex and Hermes](#agent-examples-claude-code-codex-and-hermes)
 - [Environment Variables](#environment-variables)
 - [Available Tools](#available-tools)
 - [Sample Usage](#sample-usage)
@@ -88,7 +90,7 @@ Add this to your MCP client config (podman shown; swap `podman` → `docker` if 
   "mcpServers": {
     "chile-bcn": {
       "command": "podman",
-      "args": ["run", "--rm", "-i", "-e", "FASTMCP_TRANSPORT=stdio",
+      "args": ["run", "--rm", "-i", "-e", "MCP_TRANSPORT=stdio",
                "chile-bcn-mcp:local"]
     }
   }
@@ -126,31 +128,245 @@ The compose file exposes the env vars listed in [Environment Variables](#environ
 
 ### Native (no container)
 
-For development or when you want a single static binary with no container runtime.
+For development or when you want a single static binary with no container runtime. Every binary is fully static (`CGO_ENABLED=0`) and self-contained — the LeyChile endpoints contract (`internal/config/api.resources.yaml`) and curated prompts (`internal/prompts/prompts.yaml`) are baked in via `go:embed`. No external files, no Go toolchain at runtime; `cd` into any extracted folder and run the binary directly.
 
-```bash
-# Build a static binary (outputs to bin/)
-make build
+#### Option A — download prebuilt binaries (recommended)
 
-# Or run directly for development
-make run-http        # HTTP mode
-make run-stdio       # stdio mode
+1. Download `dist.zip` from the latest [GitHub Release](../../releases) (attached as a release asset — see [Release Process](#release-process)).
+2. Unzip and pick the binary for your platform:
 
-```bash
-make dist
+```
+dist.zip
+├── windows/{amd64,arm64}/chile-bcn-mcp.exe
+├── linux/{amd64,arm64}/chile-bcn-mcp
+├── darwin/{amd64,arm64}/chile-bcn-mcp     (amd64 = Intel, arm64 = Apple Silicon)
+└── SHA256SUMS.txt
 ```
 
-The binary is fully static — it needs no Go toolchain at runtime. The API endpoints contract and curated prompts are baked into the binary via `go:embed` (`internal/config/api.resources.yaml` and `internal/prompts/prompts.yaml`, no external files — configuration changes are deployed by rebuilding).
+```bash
+unzip dist.zip
+# optional: verify checksums
+sha256sum -c dist/SHA256SUMS.txt
+```
+
+3. Run it — see [Running the binary](#running-the-binary-stdio-vs-http) below.
+
+#### Option B — build from source
+
+```bash
+# Single binary for your host (outputs to bin/)
+make build
+./bin/chile-bcn-mcp            # defaults to HTTP on 127.0.0.1:8000/mcp
+
+# Or cross-compile all 6 targets exactly as CI does (outputs to dist/ + dist.zip)
+make dist                      # same script CI runs: scripts/build-dist.sh
+```
+
+Dev shortcuts that run without building `bin/`:
+
+```bash
+make run-http        # HTTP mode (go run, no auth)
+make run-http-auth   # HTTP mode with MCP_AUTH_TOKEN=devtoken (override: DEV_AUTH_TOKEN=my-token make run-http-auth)
+make run-stdio       # stdio mode
+```
+
+#### Running the binary (stdio vs HTTP)
+
+The same binary speaks both transports — selected by `MCP_TRANSPORT` (see [Environment Variables](#environment-variables)). `MCP_AUTH_TOKEN` is only enforced in HTTP mode and ignored in stdio.
+
+**stdio — agent-launched (no network):**
+
+```bash
+# direct
+MCP_TRANSPORT=stdio ./dist/linux/amd64/chile-bcn-mcp
+# Windows (PowerShell)
+$env:MCP_TRANSPORT="stdio"; .\dist\windows\amd64\chile-bcn-mcp.exe
+```
+
+MCP client config (generic — Claude Code / Desktop, Cursor, etc.) — point `command` at the absolute path:
+
+```json
+{
+  "mcpServers": {
+    "chile-bcn": {
+      "command": "/absolute/path/to/chile-bcn-mcp",
+      "env": { "MCP_TRANSPORT": "stdio" }
+    }
+  }
+}
+```
+
+> `command` must be an absolute path; `MCP_TRANSPORT=stdio` is required. No port, no token, no `-i`/`-t` flags — those are container-only.
+
+**HTTP — self-hosted (always-on):**
+
+```bash
+# default: http://127.0.0.1:8000/mcp  (+ health at /health)
+./dist/linux/amd64/chile-bcn-mcp
+
+# custom host/port/path + auth
+MCP_HOST=0.0.0.0 MCP_PORT=9000 MCP_PATH=/mcp MCP_AUTH_TOKEN=your-token \
+  ./dist/linux/amd64/chile-bcn-mcp
+# health check
+curl http://localhost:8000/health
+# -> {"status":"healthy"}
+```
+
+MCP client config for HTTP:
+
+```json
+{
+  "mcpServers": {
+    "chile-bcn": {
+      "type": "http",
+      "url": "http://localhost:8000/mcp",
+      "headers": { "Authorization": "Bearer your-token" }
+    }
+  }
+}
+```
+
+Omit `headers` if you didn't set `MCP_AUTH_TOKEN`. Adjust `url` if you changed `MCP_PORT` or `MCP_PATH`.
+
+#### Agent examples: Claude Code, Codex and Hermes
+
+All three agents can use the same binary. Pick **stdio** (agent spawns the binary) or **HTTP** (binary runs as a daemon). `command`/`args` below must be absolute paths — `~` is not expanded by the agents.
+
+##### Claude Code
+
+Claude Code reads `.mcp.json` (project scope, committed) or `~/.claude.json` (user scope). `type: "http"` is required for HTTP; an entry with `url` but no `type` is treated as stdio and skipped.
+
+**stdio via CLI:**
+
+```bash
+# add (user scope is default; add --scope project to write .mcp.json)
+claude mcp add --env MCP_TRANSPORT=stdio --transport stdio chile-bcn -- /absolute/path/to/chile-bcn-mcp
+
+# verify
+claude mcp list
+claude mcp get chile-bcn
+```
+
+**stdio via JSON** (`.mcp.json` or `~/.claude.json`):
+
+```json
+{
+  "mcpServers": {
+    "chile-bcn": {
+      "command": "/absolute/path/to/chile-bcn-mcp",
+      "env": { "MCP_TRANSPORT": "stdio" }
+    }
+  }
+}
+```
+
+Windows example: `"command": "C:\\tools\\chile-bcn-mcp.exe"` (same `env`).
+
+**HTTP via CLI:**
+
+```bash
+claude mcp add --transport http chile-bcn http://localhost:8000/mcp --header "Authorization: Bearer your-token"
+# without auth:
+claude mcp add --transport http chile-bcn http://localhost:8000/mcp
+```
+
+**HTTP via JSON:**
+
+```json
+{
+  "mcpServers": {
+    "chile-bcn": {
+      "type": "http",
+      "url": "http://localhost:8000/mcp",
+      "headers": { "Authorization": "Bearer your-token" }
+    }
+  }
+}
+```
+
+Omit `headers` when `MCP_AUTH_TOKEN` is empty. `type` also accepts `streamable-http` as an alias.
+
+##### Codex CLI
+
+Codex reads `~/.codex/config.toml` (user) or `.codex/config.toml` (project). Restart Codex after editing the file. TOML keys are `mcp_servers` (with underscore).
+
+**stdio via `config.toml`:**
+
+```toml
+[mcp_servers.chile-bcn]
+command = "/absolute/path/to/chile-bcn-mcp"
+args = []
+
+[mcp_servers.chile-bcn.env]
+MCP_TRANSPORT = "stdio"
+```
+
+**HTTP via `config.toml`:**
+
+```toml
+[mcp_servers.chile-bcn]
+url = "http://localhost:8000/mcp"
+# if you set MCP_AUTH_TOKEN on the server, add the header:
+# headers = { Authorization = "Bearer your-token" }
+```
+
+> Codex also supports per-project overrides and `codex mcp` subcommands in newer releases — the TOML above is the stable shared format for CLI and VS Code.
+
+##### Hermes Agent
+
+Hermes reads `~/.hermes/config.yaml` (or `~/.config/hermes/config.yaml` depending on install) under the `mcp_servers` key, and can also migrate Claude Code's `mcpServers` via `hermes import-agent claude-code`. After changing the YAML, run `/reload-mcp` or restart Hermes.
+
+**stdio via YAML:**
+
+```yaml
+mcp_servers:
+  chile-bcn:
+    command: "/absolute/path/to/chile-bcn-mcp"
+    args: []
+    env:
+      MCP_TRANSPORT: "stdio"
+    # optional: limit the tool surface
+    # tools:
+    #   include: [search_laws, get_law, get_law_summary, get_law_history]
+```
+
+**stdio via CLI:**
+
+```bash
+hermes mcp add chile-bcn --command /absolute/path/to/chile-bcn-mcp --env MCP_TRANSPORT=stdio
+hermes mcp test chile-bcn
+```
+
+**HTTP via YAML:**
+
+```yaml
+mcp_servers:
+  chile-bcn:
+    url: "http://localhost:8000/mcp"
+    headers:
+      Authorization: "Bearer your-token"
+    # optional filtering — same as stdio
+    # tools:
+    #   exclude: [get_law_history]
+```
+
+Omit `headers` when auth is disabled. Hermes also supports `tools.prompts` / `tools.resources` toggles — leave them at defaults unless you need to hide wrapper tools.
+
+**HTTP via CLI:**
+
+```bash
+hermes mcp add chile-bcn --url http://localhost:8000/mcp --header "Authorization: Bearer your-token"
+```
+
 ---
 
 ## Environment Variables
-
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `FASTMCP_TRANSPORT` | `http` | Transport mode: `http` (self-hosted) or `stdio` (agent-launched) |
-| `FASTMCP_HOST` | `127.0.0.1` (`0.0.0.0` in the container) | Bind address (HTTP only) |
-| `FASTMCP_PORT` | `8000` | Port to listen on (HTTP only) |
-| `FASTMCP_PATH` | `/mcp` | HTTP endpoint path (HTTP only) |
+| `MCP_TRANSPORT` | `http` | Transport mode: `http` (self-hosted) or `stdio` (agent-launched) |
+| `MCP_HOST` | `127.0.0.1` (`0.0.0.0` in the container) | Bind address (HTTP only) |
+| `MCP_PORT` | `8000` | Port to listen on (HTTP only) |
+| `MCP_PATH` | `/mcp` | HTTP endpoint path (HTTP only) |
 | `MCP_AUTH_TOKEN` | *(empty)* | Bearer token required for HTTP auth; ignored in stdio |
 The LeyChile endpoints (URLs, timeouts, retry policy, circuit breaker) are declared in `internal/config/api.resources.yaml`, loaded once at startup from the embedded contract with fail-fast validation, and baked into the binary at build time.
 
