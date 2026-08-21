@@ -1,0 +1,53 @@
+{
+  "took": 39,
+  "timed_out": false,
+  "_shards": {"total": 23, "successful": 23, "skipped": 0, "failed": 0},
+  "hits": {
+    "total": {"value": 312, "relation": "eq"},
+    "max_score": 49.86,
+    "hits": [
+      {
+        "_index": "cgr-dictamenes",
+        "_type": "_doc",
+        "_id": "OF80660N26",
+        "_score": 997.31,
+        "_source": {
+          "doc_id": "OF80660N26",
+          "n_dictamen": "OF80660",
+          "numeric_doc_id": "OF80660",
+          "fecha_documento": "2026-04-27T00:00:00+00:00",
+          "carácter": "NNN",
+          "materia": "Cursa con alcances la resolución N° 42, de 2026, de la Dirección de Vialidad",
+          "descriptores": "Facultades CGR, toma de razón, convenio ad-referéndum trato directo",
+          "criterio": "Aplica Jurisprudencia",
+          "origen_": "División de Infraestructura y Regulación",
+          "destinatarios": "Director de Vialidad",
+          "abogados": "GEC IAA",
+          "fuentes_legales": "ley 20500 art/15",
+          "documento_completo": "\n\nN° OF80660   Fecha: 27-04-2026\n\n\nEsta Contraloría General ha dado curso al instrumento del rubro.\n\nSaluda atentamente a Ud.,\nPor orden de la Contralora General\n"
+        }
+      },
+      {
+        "_index": "cgr-dictamenes",
+        "_type": "_doc",
+        "_id": "E179593N25",
+        "_score": 887.86,
+        "_source": {
+          "doc_id": "E179593N25",
+          "n_dictamen": "E179593",
+          "numeric_doc_id": "E179593",
+          "fecha_documento": "2025-10-22T00:00:00+00:00",
+          "carácter": "NNN",
+          "materia": "Cursa con alcance la resolución N° 110, de 2025, de la Dirección de Vialidad",
+          "descriptores": "Facultades CGR, toma de razón, convenio",
+          "criterio": "Aplica Jurisprudencia",
+          "origen_": "División de Infraestructura y Regulación",
+          "destinatarios": "Director de Vialidad",
+          "abogados": "FMP",
+          "fuentes_legales": "",
+          "documento_completo": "\n\nN° E179593  Fecha: 22-10-2025\n\n\nEsta Contraloría General ha dado curso al instrumento del rubro.\n\nSaluda atentamente a Ud.,\nVíctor Hugo Merino Rojas\nSubcontralor General\n"
+        }
+      }
+    ]
+  }
+}

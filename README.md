@@ -6,8 +6,7 @@
 [![Go](https://img.shields.io/badge/Go-blue?logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A Model Context Protocol (MCP) server that gives AI assistants direct access to Chilean laws, decrees and resolutions from **LeyChile**, the legal database of the Biblioteca del Congreso Nacional de Chile (BCN) — in a format designed for how LLMs consume text.
-
+A Model Context Protocol (MCP) server that gives AI assistants direct access to Chilean laws, decrees and resolutions from **LeyChile** (Biblioteca del Congreso Nacional) and **Contraloría dictámenes** (jurisprudencia administrativa via `contraloria.cl/apibusca`) — in a format designed for how LLMs consume text.
 > **Built with Go** using the official [modelcontextprotocol/go-sdk](https://github.com/modelcontextprotocol/go-sdk). Legal content is served by the public LeyChile API of the Biblioteca del Congreso Nacional.
 
 > ⚠️ **Disclaimer:** this is an independent community project — not affiliated with BCN/LeyChile or any Chilean government institution — and is not intended for production use. See the [Disclaimer](#disclaimer) section for the full terms.
@@ -382,11 +381,11 @@ The server exposes three MCP tools:
 | **`get_law(norm_id, version_date?, structure_only?)`** | Full content of a norm by `norm_id`: metadata, nested table of contents, related bills, and the complete text in Markdown. `version_date` (`YYYY-MM-DD`, strict) returns the version in force at that date. |
 | **`get_law_history(norm_id)`** | Legislative history of a norm: its own history, the laws that modified it and the laws it modified — with dates, descriptions and LeyChile ficha links. |
 | **`get_law_summary(norm_id, version_date?)`** | Lightweight overview of a norm — title, source, matters, categories and the official BCN summary — without the content. Use before reading the full text. |
+| **`search_cgr_dictamenes(query, exact_search?, order?, page?)`** | Paginated search of Contraloría dictámenes (20 per page, `order` `date`/`dateasc`/`score`). Returns `dictamen_id`, `materia`, `descriptores` and HTML/PDF URLs for citation. |
+| **`get_cgr_dictamen(dictamen_id)`** | Full dictamen by `dictamen_id` (e.g. `E179593N25`): metadata + sanitized `documento_completo` with `char_count` and `url`/`pdf_url` for citation and PDF download. |
+| **`count_cgr_jurisprudencia(query, exact_search?)`** | Cross-type count for a query (dictamenes, auditoria, legislacion, etc.) without fetching documents — buckets with counts per type. |
 
-Every tool returns both readable text (`content[]`) and typed `structuredContent` with a generated JSON schema.
-
-**Caching**: norm content is cached in memory with **ETag revalidation**, keyed per version (`norm_id@version_date` — historical versions never share cache entries). Re-requesting the same norm+version sends `If-None-Match` and a `304` from LeyChile serves the cached copy without re-downloading or re-converting. `get_law_summary` derives from the same cache without any network call on a hit; `get_law_history` has its own ETag cache.
-
+**Caching**: norm content is cached in memory with **ETag revalidation**, keyed per version (`norm_id@version_date` — historical versions never share cache entries). Re-requesting the same norm+version sends `If-None-Match` and a `304` from LeyChile serves the cached copy without re-downloading or re-converting. `get_law_summary` derives from the same cache without any network call on a hit; `get_law_history` has its own ETag cache. Contraloría dictámenes use a simple **LRU 100 + singleflight** cache (no ETag — CGR does not send it) with keys `search:{query}|{exact}|{order}|{page}`, `dictamen:{id}` and `count:{query}|{exact}`.
 ---
 
 ## Sample Usage
@@ -472,14 +471,13 @@ Publishing is deliberate, not automatic:
 
 ---
 
-## Repository Layout
-
 | Path | What it is |
 |------|-----------|
 | `cmd/chile-bcn-mcp/` | The MCP server binary entry point |
 | `internal/bcn/` | LeyChile domain client: resty per-endpoint, retry/circuit breaker, nested-content parsing, Markdown conversion, sanitizer, ETag cache |
+| `internal/cgr/` | Contraloría domain client: resty per-endpoint, retry/circuit breaker, sanitizer (clean-directo), LRU 100 + singleflight |
 | `internal/config/` | The `api.resources.yaml` contract loader with fail-fast validation (embedded via `go:embed`) |
-| `internal/config/api.resources.yaml` | LeyChile endpoints contract (baked into the binary) |
+| `internal/config/api.resources.yaml` | LeyChile + Contraloría endpoints contract (baked into the binary) |
 | `internal/prompts/prompts.yaml` | Curated MCP prompts (baked into the binary) |
 | `.github/workflows/` | CI (test + vet) and publish (multi-arch → GHCR) |
 | `Makefile` | Build helpers: `make check`, `make smoke`, `make mock`, `make podman-*`, etc. |

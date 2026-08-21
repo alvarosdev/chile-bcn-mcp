@@ -80,8 +80,8 @@ func (s *ResourcesSuite) TestLoadEmbedded() {
 	res, err := LoadEmbedded()
 	s.Require().NoError(err)
 	s.Equal(1, res.Version)
-	s.Len(res.Resources, 3)
-	for _, name := range []string{"search_laws", "get_law", "get_law_history"} {
+	s.Len(res.Resources, 5)
+	for _, name := range []string{"search_laws", "get_law", "get_law_history", "cgr_search", "cgr_count"} {
 		_, ok := res.Resources[name]
 		s.True(ok, "embedded resources missing %s", name)
 	}
