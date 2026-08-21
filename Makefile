@@ -27,7 +27,7 @@ run-http-auth: ## Run the server (HTTP) with a temporary Bearer token for testin
 	MCP_AUTH_TOKEN=$(DEV_AUTH_TOKEN) go run -ldflags="$(LDFLAGS)" ./cmd/chile-bcn-mcp
 
 run-stdio: ## Run the server over stdio
-	FASTMCP_TRANSPORT=stdio go run -ldflags="$(LDFLAGS)" ./cmd/chile-bcn-mcp
+	MCP_TRANSPORT=stdio go run -ldflags="$(LDFLAGS)" ./cmd/chile-bcn-mcp
 test: ## Run all tests (no cache)
 	go test ./... -count=1
 

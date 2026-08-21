@@ -6,15 +6,15 @@ Capacidad base del servidor MCP de chile-bcn-mcp: expone las mismas tools a trav
 
 ### Requirement: Transportes conmutables
 
-El servidor DEBE exponer el mismo conjunto de tools registradas a través de transporte **stdio** (stdin/stdout) o **streamable HTTP** (endpoint `/mcp`), según el valor de la variable de entorno `FASTMCP_TRANSPORT`. El valor `stdio` activa el transporte stdio; cualquier otro valor (por defecto `http`) activa streamable HTTP. El cambio de transporte no DEBE alterar las tools disponibles.
+El servidor DEBE exponer el mismo conjunto de tools registradas a través de transporte **stdio** (stdin/stdout) o **streamable HTTP** (endpoint `/mcp`), según el valor de la variable de entorno `MCP_TRANSPORT`. El valor `stdio` activa el transporte stdio; cualquier otro valor (por defecto `http`) activa streamable HTTP. El cambio de transporte no DEBE alterar las tools disponibles.
 
 #### Scenario: Arranque con transporte stdio
-- **WHEN** el servidor se inicia con `FASTMCP_TRANSPORT=stdio`
+- **WHEN** el servidor se inicia con `MCP_TRANSPORT=stdio`
 - **THEN** el servidor atiende el protocolo MCP por stdin/stdout y no abre puertos de red
 
 #### Scenario: Arranque con transporte HTTP
-- **WHEN** el servidor se inicia con `FASTMCP_TRANSPORT=http`
-- **THEN** el servidor escucha en `FASTMCP_HOST:FASTMCP_PORT` (por defecto `127.0.0.1:8000`) y atiende MCP en la ruta configurada (por defecto `/mcp`)
+- **WHEN** el servidor se inicia con `MCP_TRANSPORT=http`
+- **THEN** el servidor escucha en `MCP_HOST:MCP_PORT` (por defecto `127.0.0.1:8000`) y atiende MCP en la ruta configurada (por defecto `/mcp`)
 
 #### Scenario: Mismas tools en ambos transportes
 - **WHEN** un cliente MCP consulta `tools/list` por stdio y otro por HTTP
@@ -22,14 +22,14 @@ El servidor DEBE exponer el mismo conjunto de tools registradas a través de tra
 
 ### Requirement: Configuración por variables de entorno
 
-El servidor DEBE leer toda su configuración de variables de entorno al arrancar: `FASTMCP_TRANSPORT` (transporte), `FASTMCP_HOST` (host de escucha), `FASTMCP_PORT` (puerto), `FASTMCP_PATH` (ruta HTTP de MCP, por defecto `/mcp`) y `MCP_AUTH_TOKEN` (token de autenticación). Cada variable DEBE tener un valor por defecto documentado y no DEBE requerir archivos de configuración.
+El servidor DEBE leer toda su configuración de variables de entorno al arrancar: `MCP_TRANSPORT` (transporte), `MCP_HOST` (host de escucha), `MCP_PORT` (puerto), `MCP_PATH` (ruta HTTP de MCP, por defecto `/mcp`) y `MCP_AUTH_TOKEN` (token de autenticación). Cada variable DEBE tener un valor por defecto documentado y no DEBE requerir archivos de configuración.
 
 #### Scenario: Valores por defecto
 - **WHEN** el servidor se inicia sin variables de entorno definidas
 - **THEN** usa `http` como transporte, `127.0.0.1:8000` como dirección, `/mcp` como ruta y no requiere autenticación
 
 #### Scenario: Override explícito
-- **WHEN** el operador define `FASTMCP_TRANSPORT=stdio` y `FASTMCP_PORT=9000`
+- **WHEN** el operador define `MCP_TRANSPORT=stdio` y `MCP_PORT=9000`
 - **THEN** el servidor usa esos valores en lugar de los por defecto
 
 ### Requirement: Autenticación opcional por token Bearer

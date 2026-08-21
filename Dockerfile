@@ -32,8 +32,8 @@ COPY --from=builder /out/chile-bcn-mcp /usr/local/bin/
 
 ENV GOMEMLIMIT=256MiB
 
-ENV FASTMCP_HOST=0.0.0.0
-ENV FASTMCP_TRANSPORT=http
+ENV MCP_HOST=0.0.0.0
+ENV MCP_TRANSPORT=http
 
 EXPOSE 8000
 

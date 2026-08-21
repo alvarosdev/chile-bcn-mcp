@@ -23,8 +23,8 @@ func unsetEnv(t *testing.T, keys ...string) {
 }
 
 func TestLoadConfigDefaults(t *testing.T) {
-	unsetEnv(t, "FASTMCP_TRANSPORT", "FASTMCP_HOST", "FASTMCP_PORT",
-		"FASTMCP_PATH", "MCP_AUTH_TOKEN")
+	unsetEnv(t, "MCP_TRANSPORT", "MCP_HOST", "MCP_PORT",
+		"MCP_PATH", "MCP_AUTH_TOKEN")
 
 	cfg := LoadConfig()
 
@@ -46,13 +46,13 @@ func TestLoadConfigDefaults(t *testing.T) {
 }
 
 func TestLoadConfigOverrides(t *testing.T) {
-	unsetEnv(t, "FASTMCP_TRANSPORT", "FASTMCP_HOST", "FASTMCP_PORT",
-		"FASTMCP_PATH", "MCP_AUTH_TOKEN")
+	unsetEnv(t, "MCP_TRANSPORT", "MCP_HOST", "MCP_PORT",
+		"MCP_PATH", "MCP_AUTH_TOKEN")
 	env := map[string]string{
-		"FASTMCP_TRANSPORT": "stdio",
-		"FASTMCP_HOST":      "0.0.0.0",
-		"FASTMCP_PORT":      "9000",
-		"FASTMCP_PATH":      "/mcp-custom",
+		"MCP_TRANSPORT": "stdio",
+		"MCP_HOST":      "0.0.0.0",
+		"MCP_PORT":      "9000",
+		"MCP_PATH":      "/mcp-custom",
 		"MCP_AUTH_TOKEN":    "secret",
 	}
 	for k, v := range env {
@@ -61,8 +61,8 @@ func TestLoadConfigOverrides(t *testing.T) {
 		}
 	}
 	t.Cleanup(func() {
-		unsetEnv(t, "FASTMCP_TRANSPORT", "FASTMCP_HOST", "FASTMCP_PORT",
-			"FASTMCP_PATH", "MCP_AUTH_TOKEN")
+		unsetEnv(t, "MCP_TRANSPORT", "MCP_HOST", "MCP_PORT",
+			"MCP_PATH", "MCP_AUTH_TOKEN")
 	})
 
 	cfg := LoadConfig()
